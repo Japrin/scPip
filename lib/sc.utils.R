@@ -117,55 +117,6 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 						    )
 }
 
-### see that defined in cancer/lib/scRNAToolKit.R
-####inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25,0.5),
-####                           Th.CD3=0.25,Th.CD8=0.5,Th.CD4=0.5,Th.TH=0.25,Th.TR=0.25,rescue.CD4=T)
-####{
-####    #### in silico classification
-####    library("data.table")
-####    library("ggplot2")
-####    ##gene.to.test <- c("CD4","CD8A","CD8B","CD3D","CD3E","CD3G","CD40LG","FOXP3","IL2RA")
-####    gene.to.test <- c("CD4","CD8A","CD8B","CD3D","CD3G","CD40LG","FOXP3","IL2RA")
-####    f.gene <- which(rowData(sce)$display.name %in% gene.to.test)
-####    gene.to.test <- structure(rowData(sce)$display.name[f.gene],names=rownames(sce)[f.gene])
-####    gene.to.test <- gene.to.test[order(gene.to.test)]
-####
-####    dat.plot <- as.data.frame(t(as.matrix(assay(sce,assay.name)[names(gene.to.test),])))
-####    colnames(dat.plot) <- gene.to.test
-####    ##dat.plot[,"CD3"] <- apply(dat.plot[,c("CD3D","CD3E","CD3G")],1,mean)
-####    dat.plot[,"CD3"] <- apply(dat.plot[,c("CD3D","CD3G")],1,mean)
-####    dat.plot[,"CD8"] <- apply(dat.plot[,c("CD8A","CD8B")],1,mean)
-####    dat.plot[,"TH"] <- apply(dat.plot[,c("CD4","CD40LG")],1,mean)
-####    dat.plot[,"TR"] <- apply(dat.plot[,c("CD4","FOXP3")],1,mean)
-####    dat.plot.melt <- melt(as.matrix(dat.plot))
-####    colnames(dat.plot.melt) <- c("cell","gene","norm_exprs")
-####
-####    p <- ggplot(dat.plot.melt, aes(norm_exprs, fill = gene, colour = gene)) +
-####        geom_density(alpha = 0.1) +
-####        geom_vline(xintercept = vis.v,linetype=2) +
-####        facet_wrap(~gene,ncol=3,scales="free_y")
-####    ggsave(sprintf("%s.inSiliso.marker.density.pdf",out.prefix),width=7,height=8)
-####
-####    sce$stype <- "unknown"
-####    ####sce$stype[dat.plot[,"CD3"] < 0.25] <- "noCD3"
-####    sce$stype[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] < Th.CD4] <- "CD8"
-####    sce$stype[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "DP"
-####    sce$stype[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] < Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "CD4"
-####    sce$stype[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] < Th.CD8 & dat.plot[,"CD4"] < Th.CD4] <- "DN"
-####    if(rescue.CD4==T){
-####	### todo: add requirement: DN and not gamma delta T
-####	sce$stype[sce$stype=="DN" & (dat.plot[,"TH"] > Th.TH | dat.plot[,"TR"] > Th.TR)] <- "CD4"
-####    }
-####    ##sce$stype[dat.plot[,"CD3"] > 0.25 & dat.plot[,"CD8"] < 0.5 & dat.plot[,"CD4"] < 0.5 & dat.plot[,"TH"] > 0.25 ] <- "TH"
-####    ##sce$stype[dat.plot[,"CD3"] > 0.25 & dat.plot[,"CD8"] < 0.5 & dat.plot[,"CD4"] < 0.5 & dat.plot[,"TR"] > 0.25 ] <- "TR"
-####    table(sce$stype)
-####
-####    write.table(colData(sce),sprintf("%s.cellInfo.txt",out.prefix),row.names=F,sep="\t",quote=F)
-####    return(sce)
-####}
-####
-
-
 run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 			measurement="counts",platform="10X",
 			opt.res="1",use.sctransform=F,aid="PRJ",plot.rd=c("umap","tsne"),
@@ -597,310 +548,203 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 	return(list("seu"=seu,"sce"=sce))
 }
 
-divid.CD4CD8 <- function(sce,out.prefix,gene.use,
-			measurement="counts",platform="10X",
-			opt.res="0.6",use.sctransform=F,aid="PRJ",plot.rd=c("umap","tsne"),
-			opt.npc=5,ncores=16,do.adj=F,
-			gene.mapping.table=NULL,res.addition=NULL)
+cal.signatureScore.gdT.Fred <- function(obj,GSx=c("CD3D","CD3E","TRDC","TRGC1","TRGC2"),
+									GSy=c("CD8A","CD8B"),
+									col.name="Score.gammaDeltaT",th.score=0.35,out.prefix=NULL)
 {
-
-    RhpcBLASctl::omp_set_num_threads(1)
-    doParallel::registerDoParallel(cores = ncores)
-
-    {
-	gene.CD4CD8.tb <- fread("/lustre1/zeminz_pkuhpc/zhenglt/work/panC/ana/zhangLab.10X/divid.CD4.CD8/OUT.sigGene/T.CD4CD8.by.Tn.Temra.txt.gz")
-	gene.CD4CD8.tb[,geneID:=as.character(geneID)]
-	gene.DNDP.tb <- fread("/lustre1/zeminz_pkuhpc/zhenglt/work/panC/data/human.thymic.development.JongEunPark2020/OUT.JongEunPark2020/JongEunPark2020.deg.T.set4.top.txt")
-	gene.DNDP.tb <- gene.DNDP.tb[cluster %in% c("DP","DN"),]
-	gene.DNDP.tb[,geneID:=as.character(geneID)]
-	gene.DNDP.tb <- gene.DNDP.tb[,c("geneID","cluster","geneSymbol")]
-	colnames(gene.DNDP.tb)[2] <- "category"
-	gene.div.tb <- rbind(gene.CD4CD8.tb,gene.DNDP.tb)
-	gene.div.tb$ENSG <- rownames(sce)[match(gene.div.tb$geneSymbol,rowData(sce)$display.name)]
-	gene.div.tb <- gene.div.tb[!is.na(ENSG),]
-	f.gene <- intersect(gene.div.tb$geneSymbol,rowData(sce)$display.name)
-	gene.div.tb <- gene.div.tb[geneSymbol %in% f.gene,]
-
-	geneOnMap <- list("T01"=c("CD4", "CD8A", "CD8B","CCR7","SELL","CX3CR1","CD40LG","KLRC4","CTSW"),
-			       "T02"=c("CD4", "CD8A", "CD8B","TRAT1","RNASET2","CTSB","CD40LG","APBA2","KLRC3"),
-			       "T.DN"=head(gene.div.tb[category=="DN",][["geneSymbol"]],n=9),
-			       "T.DP"=head(gene.div.tb[category=="DP",][["geneSymbol"]],n=9)
-			       )
-	gene.use <- unique(c(gene.div.tb$geneSymbol,sapply(geneOnMap,function(x){ x  })))
-	sce.tmp <- sce[rowData(sce)$display.name %in% gene.use,]
-	rowData(sce.tmp)$gene.div <- rowData(sce.tmp)$display.name %in% gene.div.tb[category %in% c("CD4.hi","CD8.hi"),][["geneSymbol"]]
-
-	sce.tmp <- ssc.reduceDim(sce.tmp,pca.npc=5,
-			     assay.name = "norm_exprs",method="pca",method.vgene="gene.div",
-			     autoTSNE=F,dim.name="div.pca")
-
-	
-	vgene <- rowData(sce.tmp)[["gene.div"]]
-        proj_data <- uwot::umap(as.matrix(BiocGenerics::t(assay(sce.tmp[vgene,], "norm_exprs"))),
-				init = "spca", pca = 5, n_threads = ncores)
-	reducedDim(sce.tmp,"div.umap") <- proj_data
-
-        proj_data <- uwot::umap(reducedDim(sce.tmp,"div.pca")[,1:5],
-				metric="cosine",
-				init = "spca", pca = NULL, n_threads = ncores)
-	reducedDim(sce.tmp,"div.umap") <- proj_data
-
-
-	l_ply(c("div.pca","div.umap"),function(rd) {
-	    ssc.plot.tsne(sce.tmp, columns = "stype",
-				  reduced.name = rd,
-				  par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-				  colSet=list(),size=0.01,label=NULL,
-				  base_aspect_ratio = 1.50)
-	    ggsave(file = sprintf("%s.%s.groupBy.%s.tttt.png",out.prefix,rd,"stype"),width=5.0,height=4)
-	})
-
-
-	#sce.tmp <- ssc.reduceDim(sce.tmp,pca.npc=5,
-	#		     assay.name = "norm_exprs",method="umap",method.vgene="gene.div",
-	#		     autoTSNE=F,dim.name="div.umap",ncore=ncores)
-
-	#### using seurat
-	rownames(sce.tmp) <- rowData(sce.tmp)$seu.id
-	seu <- as.Seurat(sce.tmp,counts="counts",data = "norm_exprs")
-
-    }
-
-    ###
-    plot.all <- function(rd="umap",resolution.vec=seq(0.5,2.4,0.1))
-    {
-	p <- DimPlot(seu,reduction=rd, group.by = "loc")
-	ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"loc"),width=5,height=4)
-
-	if(!is.null(seu@meta.data[["stype"]])){
-		p <- DimPlot(seu,reduction=rd, group.by = "stype")
-		ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"stype"),width=5,height=4)
-	}
-	
-	p <- DimPlot(seu,reduction=rd, group.by = "cancerType")
-	ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"cancerType"),width=5,height=4)
-
-	if(length(unique(seu$libraryID))>20){
-		p <- DimPlot(seu,reduction=rd,label=F,label.size=2,
-			     group.by = "libraryID") + NoLegend()
-		ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"libraryID"),width=4.5,height=4)
-	}else{
-		p <- DimPlot(seu,reduction=rd,label=T,label.size=2, group.by = "libraryID")
-		ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"libraryID"),width=6.5,height=4)
+	if(!all(GSx %in% rowData(obj)$display.name) || !all(GSy %in% rowData(obj)$display.name)){
+		warning(sprintf("not all genes in GSx and GSy in the obj !!\n"))
+		return(obj)
 	}
 
-	if(length(unique(seu$patient))>20){
-		p <- DimPlot(seu,reduction=rd, group.by = "patient") + NoLegend()
-		ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"patient"),width=4.5,height=4)
-	}else{
-		p <- DimPlot(seu,reduction=rd, group.by = "patient")
-		ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"patient"),width=6.5,height=4)
-	}
+	f.gene <- which(rowData(obj)$display.name %in% GSx)
+	GSx <- rowData(obj)$display.name[f.gene]
+	f.gene <- which(rowData(obj)$display.name %in% GSy)
+	GSy <- rowData(obj)$display.name[f.gene]
+	count.tot <- colSums(assay(obj,"counts"))
+	GSx.tot <- colSums(assay(obj,"counts")[names(GSx),])
+	GSy.tot <- colSums(assay(obj,"counts")[names(GSy),])
+	GSx.score <- GSx.tot/count.tot
+	GSy.score <- -GSy.tot/count.tot
+	GSx.score <- (GSx.score-min(GSx.score))/(max(GSx.score)-min(GSx.score))
+	GSy.score <- (GSy.score-min(GSy.score))/(max(GSy.score)-min(GSy.score))
+	comb.score <- GSx.score * GSy.score
+	colData(obj)[[col.name]] <- comb.score
+	colData(obj)[[sprintf("%s.pred.th",col.name)]] <- (comb.score > th.score)
+	print(table(obj$stype,obj[[sprintf("%s.pred.th",col.name)]]))
+	bin.tb <- sscClust::classify.outlier(comb.score,out.prefix=out.prefix,e.name="Score",th.score=th.score)
+	all(bin.tb$sample==colnames(obj))
+	colData(obj)[[sprintf("%s.pred.auto",col.name)]] <-(bin.tb$score.cls.tb$classification==1)
+	print(table(obj$stype,obj[[sprintf("%s.pred.auto",col.name)]]))
+	freq.tb <- unclass(table(obj$stype,obj[[sprintf("%s.pred.auto",col.name)]]))
+	freq.tb <- 100*sweep(freq.tb,1,rowSums(freq.tb),"/")
 
-	plot.resolution.list <- list()
-	for(t.res in resolution.vec){
-	    if(use.sctransform && platform!="SmartSeq2"){
-		    cate.res <- sprintf("SCT_snn_res.%s",t.res)
-	    }else{
-		    cate.res <- sprintf("RNA_snn_res.%s",t.res)
-	    }
-	    plot.resolution.list[[cate.res]] <- DimPlot(seu, reduction = rd,
-							pt.size=0.1,label.size=2,
-							label = TRUE,
-							group.by=cate.res) +
-		    NoLegend()
-	}
+	### subtypes: delta 1 and delta 2
+	gene.GC1 <- c("TRGC1")
+	gene.GC2 <- c("TRGC2")
+	f.gene <- which(rowData(obj)$display.name %in% gene.GC1)
+	gene.GC1 <- rowData(obj)$display.name[f.gene]
+	f.gene <- which(rowData(obj)$display.name %in% gene.GC2)
+	gene.GC2 <- rowData(obj)$display.name[f.gene]
+	exp.diff <- assay(obj,"norm_exprs")[names(gene.GC1),] - assay(obj,"norm_exprs")[names(gene.GC2),]
+	f.isGammDeltaT <- obj[[sprintf("%s.pred.auto",col.name)]]==T
+	colData(obj)[[sprintf("%s.auto.subtype",col.name)]] <- "NotGammaDeltaT"
+	colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff==0 & f.isGammDeltaT] <- "undetermined"
+	colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff>0 & f.isGammDeltaT] <- "delta2"
+	colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff<0 & f.isGammDeltaT] <- "delta1"
+	colData(obj)[[sprintf("%s.auto.subtype",col.name)]] <- factor(colData(obj)[[sprintf("%s.auto.subtype",col.name)]],
+																  levels=c("delta1","delta2","undetermined","NotGammaDeltaT"))
+	table(obj[[sprintf("%s.pred.auto",col.name)]],obj[[sprintf("%s.auto.subtype",col.name)]])
 
-	for(i in seq_len(length(plot.resolution.list)/4))
-	{
-		pp <- plot_grid(plotlist=plot.resolution.list[((i-1)*4+1):(i*4)],
-						ncol = 2,align = "hv")
-		save_plot(sprintf("%s.%s.res.%d.png",out.prefix,rd,i),pp,
-			  ncol = 2, base_aspect_ratio=0.55)
-	}
-
-	plot.resolution.list <- list()
-	for(t.res in resolution.vec){
-	    if(use.sctransform && platform!="SmartSeq2"){
-		    cate.res <- sprintf("SCT_snn_res.%s",t.res)
-	    }else{
-		    cate.res <- sprintf("RNA_snn_res.%s",t.res)
-	    }
-	    plot.resolution.list[[cate.res]] <- ssc.plot.tsne(sce,columns = cate.res,
-						    reduced.name = sprintf("seurat.%s",rd),
-						    colSet=list(),size=0.1,label=3,
-						    par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
-						    base_aspect_ratio = 1.2)
-	}
-
-	plot.resolution.list.debug <<- plot.resolution.list
-	out.prefix.debug <<- out.prefix
-	for(i in seq_len(length(plot.resolution.list)/4))
-	{
-	    pp <- plot_grid(plotlist=plot.resolution.list[((i-1)*4+1):(i*4)],
-					    ncol = 2,align = "hv")
-	    save_plot(sprintf("%s.%s.res.sceStyle.%d.png",out.prefix,rd,i),pp,
-			      ncol = 2, base_aspect_ratio=0.9,base_height=5.5)
-	}
-
-	## gene on umap
-	l_ply(seq_along(g.geneOnUmap.list),function(i){
-	    gene.tmp <- intersect(g.geneOnUmap.list[[i]],rowData(sce)$display.name)
-	    if(length(gene.tmp)>0){
-		p <- ssc.plot.tsne(sce,assay.name=assay.name,adjB=if(nBatch>1) "batchV" else NULL,
-				   gene=gene.tmp,
-				   par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
-					  reduced.name=sprintf("seurat.%s",rd))
-		ggsave(sprintf("%s.seurat.%s.marker.%s.png",
-			       out.prefix,rd,names(g.geneOnUmap.list)[i]),
-			   width=10,
-			   height=if(length(gene.tmp)>9) 11 else if(length(gene.tmp)>6) 8 else if(length(gene.tmp)>3) 5.4 else 2.7)
-	    }
-	},.parallel=T)
-
-	#### density
-	ssc.plot.tsne(sce,plotDensity=T,reduced.name=sprintf("seurat.%s",rd),
-			  out.prefix=sprintf("%s.seurat.%s",out.prefix,rd))
-
-	colSet <- list()
-
-	ssc.plot.tsne(sce, columns = "percent.mito", 
-				  reduced.name = sprintf("seurat.%s",rd),
-				  colSet=colSet,size=0.03,
-				  par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-				  vector.friendly=T,
-				  out.prefix = sprintf("%s.seurat.%s.groupBy.%s",out.prefix,rd,"percent.mito"),
-				  base_aspect_ratio = 1.30)
-
-	ssc.plot.tsne(sce, columns = "nFeature_RNA", 
-				  reduced.name = sprintf("seurat.%s",rd),
-				  colSet=colSet,size=0.03,
-				  par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-				  vector.friendly=T,
-				  out.prefix = sprintf("%s.seurat.%s.groupBy.%s",out.prefix,rd,"nFeature_RNA"),
-				  base_aspect_ratio = 1.30)
-    }
-
-    
-    {
-	loginfo(sprintf("running Seurat pipeline ..."))
-
-	VariableFeatures(seu) <- gene.div.tb[category %in% c("CD4.hi","CD8.hi"),][["geneSymbol"]]
-	print((seu@assays$RNA@var.features))
-
-	adj.cov <- NULL
-	loginfo(sprintf("Scale ..."))
-	
-	seu <- ScaleData(object = seu,do.scale=F,vars.to.regress = adj.cov)
-
-	#### PCA
-	seu <- RunPCA(object = seu)
-	print(x = seu[['pca']], dims = 1:5, nfeatures = 5, projected = FALSE)
-	#p <- VizDimLoadings(seu)
-	#ggsave(sprintf("%s.pca.01.pdf",out.prefix),width=7,height=14)
-
-	seu <- ProjectDim(object = seu)
-
-	#pdf(sprintf("%s.pca.02.pdf",out.prefix),width=14,height=18)
-	#DimHeatmap(object = seu, dims = 1:15, cells = 500, balanced = TRUE,fast = TRUE)
-	#dev.off()
-
-	#p <- ElbowPlot(object = seu,ndims=50)
-	#ggsave(sprintf("%s.pca.03.pdf",out.prefix),width=5,height=4)
-
-	######### UMAP
-	tic("RunUMAP...")
-	seu <- RunUMAP(object = seu, reduction = "pca",dims = 1:opt.npc)
-	toc()
-
-	p <- DimPlot(seu,reduction="umap", group.by = "stype")
-	ggsave(sprintf("%s.%s.%s.ttt.png",out.prefix,"umap","stype"),width=5,height=4)
-
-	######### tSNE 
-	if("tsne" %in% plot.rd){
-	    tic("RunTSNE...")
-	    seu <- RunTSNE(object = seu, reduction = "pca",dims = 1:opt.npc)
-	    toc()
-	}
-	
-	#### clustring
-	seu <- FindNeighbors(object = seu, reduction = "pca", dims = 1:opt.npc)
-	resolution.vec <- seq(0.1,2.4,0.1)
-	seu <- FindClusters(object = seu,resolution = c(resolution.vec,res.addition))
-	#seu <- FindClusters(object = seu,resolution = c(resolution.vec,5,10,25))
-
-	for(t.res in resolution.vec){
-	    if(use.sctransform && platform!="SmartSeq2"){
-		    print(table(seu[[sprintf("SCT_snn_res.%s",t.res)]]))
-		    aa.res <- sprintf("SCT_snn_res.%s",t.res)
-	    }else{
-		    print(table(seu[[sprintf("RNA_snn_res.%s",t.res)]]))
-		    aa.res <- sprintf("RNA_snn_res.%s",t.res)
-	    }
-	    #sce[[aa.res]] <- seu.merged@meta.data[,aa.res]
-	}
-
-	#### for sscClust
-	reducedDim(sce,"seurat.pca") <- Embeddings(seu, reduction = "pca")
-	reducedDim(sce,"seurat.umap") <- Embeddings(seu, reduction = "umap")
-	if("tsne" %in% names(seu@reductions)){
-	    reducedDim(sce,"seurat.tsne") <- Embeddings(seu, reduction = "tsne")
-	}
-
-	if(use.sctransform && platform!="SmartSeq2"){
-	    idx.colRes <- grep("^SCT_snn_res",colnames(seu[[]]),value=T)
-	}else{
-	    idx.colRes <- grep("^RNA_snn_res",colnames(seu[[]]),value=T)
-	}
-	for(idx in idx.colRes){
-	    colData(sce)[[idx]] <- sprintf("C%02d",as.integer(as.character(seu[[]][,idx])))
-	}
-
-	### patch
-	colData(sce)[sce$majorCluster=="unknown","majorCluster"] <- ""
-	### 
-
-	sce$ClusterID <- colData(sce)[[opt.res]]
-	print("all(colnames(sce)==colnames(seu))?")
-	print(all(colnames(sce)==colnames(seu)))
-	seu$ClusterID <- sce$ClusterID
-
-	for(i.rd in plot.rd){
-	    plot.all(rd=i.rd)
-	}
-    }
-
-    sce$ClusterID <- colData(sce)[[opt.res]]
-    print("all(colnames(sce)==colnames(seu))?")
-    print(all(colnames(sce)==colnames(seu)))
-    seu$ClusterID <- sce$ClusterID
-
-
-    for(i.rd in plot.rd){
-	ssc.plot.tsne(sce, columns = "ClusterID",
-		      reduced.name = sprintf("seurat.%s",i.rd),
-		      colSet=list(),size=0.03,label=3,
-		      par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-		      vector.friendly=T,
-		      out.prefix = sprintf("%s.seurat.%s.groupBy.%s",out.prefix,i.rd,"ClusterID"),
-		      base_aspect_ratio = 1.30)
-    }
-
-
-
-    ##### save result
-    #write.table(colData(sce), sprintf("%s.clusterInfo.txt",out.prefix),sep = "\t",
-    #			row.names = F, quote = F)
-    saveRDS(seu, file = sprintf("%s.seu.rds",out.prefix))
-    saveRDS(sce, file = sprintf("%s.sce.rds",out.prefix))
-    #seu <- readRDS(file = sprintf("%s.seu.rds",out.prefix))
-    #sce <- readRDS(file = sprintf("%s.sce.rds",out.prefix))
-    cat(sprintf("data saved!\n"))
-
-    #############################
-       
-
-    return(list("seu"=seu,"sce"=sce))
+	return(obj)
 }
+
+inSilico.TGammaDelta <- function(obj,out.prefix=NULL,assay.name="norm_exprs",vis.v=c(0.25,0.5),
+                           Th.CD3=0.25,Th.DC=0.25,Th.GC1=0.25,Th.GC2=0.25)
+{
+    library("data.table")
+    library("ggplot2")
+    gene.to.test <- c("CD3D","CD3G","TRDC","TRGC1","TRGC2")
+    f.gene <- which(rowData(obj)$display.name %in% gene.to.test)
+    gene.to.test <- structure(rowData(obj)$display.name[f.gene],names=rownames(obj)[f.gene])
+    gene.to.test <- gene.to.test[order(gene.to.test)]
+
+    dat.plot <- as.data.frame(t(as.matrix(assay(obj,assay.name)[names(gene.to.test),])))
+    setDT(dat.plot,keep.rownames=T)
+    colnames(dat.plot)[-1] <- gene.to.test
+    dat.plot[,"CD3"] <- apply(dat.plot[,c("CD3D","CD3G")],1,mean)
+    dat.plot.melt <- melt((dat.plot),id.vars="rn")
+    colnames(dat.plot.melt) <- c("cell","gene","norm_exprs")
+
+    p <- ggplot(dat.plot.melt, aes(norm_exprs, fill = gene, colour = gene)) +
+        geom_density(alpha = 0.1) +
+		theme_bw() +
+        geom_vline(xintercept = vis.v,linetype=2) +
+        facet_wrap(~gene,ncol=3,scales="free_y")
+    ggsave(sprintf("%s.inSiliso.marker.density.pdf",out.prefix),width=7,height=3.5)
+
+    obj$TGammaDelta <- "unknown"
+    obj$TGammaDelta[dat.plot[["CD3"]] > Th.CD3 & dat.plot[["TRDC"]] > Th.DC ] <- "undetermined"
+    obj$TGammaDelta[dat.plot[["CD3"]] > Th.CD3 & dat.plot[["TRDC"]] > Th.DC & ( dat.plot[["TRGC1"]] > Th.GC1 & dat.plot[["TRGC2"]] < Th.GC2 ) ] <- "delta2"
+    obj$TGammaDelta[dat.plot[["CD3"]] > Th.CD3 & dat.plot[["TRDC"]] > Th.DC & ( dat.plot[["TRGC1"]] < Th.GC1 & dat.plot[["TRGC2"]] > Th.GC2 ) ] <- "delta1"
+    table(obj$TGammaDelta)
+
+    #bin.tb <- sscClust::classify.outlier(dat.plot[["TRDC"]],out.prefix=out.prefix,e.name="TRDC",th.score=0.25)
+
+    ##write.table(colData(obj),sprintf("%s.cellInfo.txt",out.prefix),row.names=F,sep="\t",quote=F)
+    return(obj)
+}
+
+inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25,0.5),
+                           Th.CD3=0.25,Th.CD8=0.5,Th.CD4=0.5,Th.TH=0.25,Th.TR=0.25,do.zscore=F,
+			   Th.DC=0.25,Th.GC1=0.25,Th.GC2=0.25,
+			   do.rescue=T)
+{
+    #### in silico classification
+    library("data.table")
+    library("ggplot2")
+    library("ggpubr")
+    ##gene.to.test <- c("CD4","CD8A","CD8B","CD3D","CD3E","CD3G","CD40LG","FOXP3","IL2RA")
+    gene.to.test <- c("CD4","CD8A","CD8B","CD3D","CD3G","CD40LG","FOXP3","IL2RA",
+		      "TRDC","TRGC1","TRGC2")
+    f.gene <- which(rowData(sce)$display.name %in% gene.to.test)
+    if(do.zscore){
+	sce.z <- sce[f.gene,]
+	sce.z <- ssc.scale(sce.z,gene.symbol=gene.to.test,assay.name=assay.name,
+			   adjB="batchV",do.scale=T)
+	gene.to.test <- structure(rowData(sce.z)$display.name,names=rownames(sce.z))
+	gene.to.test <- gene.to.test[order(gene.to.test)]
+	dat.plot <- as.data.frame(t(as.matrix(assay(sce.z,sprintf("%s.scale",assay.name))[names(gene.to.test),])))
+	colnames(dat.plot) <- gene.to.test
+    }else{
+	gene.to.test <- structure(rowData(sce)$display.name[f.gene],names=rownames(sce)[f.gene])
+	gene.to.test <- gene.to.test[order(gene.to.test)]
+	dat.plot <- as.data.frame(t(as.matrix(assay(sce,assay.name)[names(gene.to.test),])))
+	colnames(dat.plot) <- gene.to.test
+    }
+
+    ##dat.plot[,"CD3"] <- apply(dat.plot[,c("CD3D","CD3E","CD3G")],1,mean)
+    dat.plot[,"CD3"] <- apply(dat.plot[,c("CD3D","CD3G")],1,mean)
+    dat.plot[,"CD8"] <- apply(dat.plot[,c("CD8A","CD8B")],1,mean)
+    dat.plot[,"TH"] <- apply(dat.plot[,c("CD4","CD40LG")],1,mean)
+    dat.plot[,"TR"] <- apply(dat.plot[,c("CD4","FOXP3")],1,mean)
+    dat.plot.melt <- melt(as.matrix(dat.plot))
+    colnames(dat.plot.melt) <- c("cell","gene","norm_exprs")
+
+    #p <- ggplot(dat.plot.melt, aes(norm_exprs, fill = gene, colour = gene)) +
+    #    geom_density(alpha = 0.1) +
+    p <- ggdensity(dat.plot.melt,x="norm_exprs",fill="gene",color="gene",
+		   alpha=0.1) +
+        geom_vline(xintercept = vis.v,linetype=2) +
+        facet_wrap(~gene,ncol=3,scales="free_y") +
+	theme_bw() +
+	theme(legend.position="none")
+    ggsave(sprintf("%s.inSiliso.marker.density.pdf",out.prefix),width=7,height=6)
+
+    sce$stype <- "unknown"
+    #sce$stype[dat.plot[,"CD3"] < 0.25] <- "noCD3"
+    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
+	      dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] < Th.CD4] <- "CD8"
+    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
+	      dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "DP"
+    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
+	      dat.plot[,"CD8"] < Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "CD4"
+    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
+	      dat.plot[,"CD8"] < Th.CD8 & dat.plot[,"CD4"] < Th.CD4] <- "DN"
+    sce$stype.strict <- sce$stype
+
+    #####
+    has.gd.gene <- F
+    if(all(c("TRDC","TRGC1","TRGC2") %in% colnames(dat.plot))){
+	x.gdType <- rep("unknown",ncol(sce))
+	x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC  ] <- "undetermined"
+	x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
+		 (dat.plot[,"TRGC1"] > Th.GC1 & dat.plot[,"TRGC2"] < Th.GC2 )  ] <- "delta2"
+	x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
+		 (dat.plot[,"TRGC1"] < Th.GC1 & dat.plot[,"TRGC2"] > Th.GC2 )  ] <- "delta1"
+	sce$gdType <- x.gdType
+	has.gd.gene <- T
+    }else{
+	warning(sprintf("There are no gd genes found in the data\n"))
+    }
+    #####
+
+    f.cell <- sce$stype=="DN" & (dat.plot[,"TH"] > Th.TH | dat.plot[,"TR"] > Th.TR)
+    ###f.cell <- sce$stype=="DN" & dat.plot[,"CD4"] > 0 & (dat.plot[,"TH"] > Th.TH | dat.plot[,"TR"] > Th.TR)
+    #print(table(sce$stype))
+    cat(sprintf("numbe of cells can be rescued: %d\n",sum(f.cell)))
+    if(do.rescue){
+	### todo: add requirement: DN and not gamma delta T ?
+	sce$stype[f.cell] <- "CD4"
+	sce$stype.rescue <- sce$stype
+    }
+
+    ####write.table(colData(sce),sprintf("%s.cellInfo.txt",out.prefix),row.names=F,sep="\t",quote=F)
+    return(sce)
+}
+
+fill.contamination <- function(seu,out.prefix,g.name="plasmaB",g.test=c("CD79A", "JCHAIN", "SDC1"),
+							   score.t=1,vis.v=c(0.25,0.5,1))
+{
+	require("ggplot2")
+	require("data.table")
+	## plasma contamination
+	B.score.tb <- data.table(cell=colnames(seu),
+				 B.score= colMeans(GetAssayData(seu,"data")[g.test,,drop=F]))
+	B.score.tb <- cbind(B.score.tb,as.matrix(t(GetAssayData(seu,"data")[g.test,,drop=F])))
+	seu[[sprintf("%s.score",g.name)]] <- B.score.tb$B.score
+	seu[[sprintf("%s.class",g.name)]] <- seu[[sprintf("%s.score",g.name)]] > score.t
+
+	B.score.tb.melt <- melt(B.score.tb,id="cell")
+	colnames(B.score.tb.melt) <- c("cell","gene","norm_exprs")
+
+	p <- ggplot(B.score.tb.melt, aes(norm_exprs, fill = gene, colour = gene)) +
+			geom_density(alpha = 0.1) +
+			geom_vline(xintercept = vis.v,linetype=2) +
+			facet_wrap(~gene,ncol=2,scales="free_y")
+	ggsave(sprintf("%s.marker.%s.density.pdf",out.prefix,g.name),width=8,height=8)
+	return(seu)
+}
+
 
 
