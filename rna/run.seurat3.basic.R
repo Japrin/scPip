@@ -11,7 +11,9 @@ parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="
 parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
 parser$add_argument("-n", "--ncores", type="integer",default=16L, help="[default %(default)s]")
 parser$add_argument("-m", "--measurement",type="character",default="counts",help="[default %(default)s]")
-parser$add_argument("-r", "--resolution",type="character",default="RNA_snn_res.1",help="[default %(default)s]")
+parser$add_argument("-r", "--resolution",type="character",default="2",help="[default %(default)s]")
+parser$add_argument("-t", "--scTransform",action="store_true",default=FALSE,help="[default %(default)s]")
+parser$add_argument("-g", "--deg",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-f", "--filterout",type="character",help="filterout cells")
 parser$add_argument("-p", "--platform",type="character",required=TRUE,help="platform such as 10X, SmartSeq2")
 args <- parser$parse_args()
@@ -28,6 +30,8 @@ opt.measurement <- args$measurement
 opt.platform <- args$platform
 opt.stype <- args$stype
 opt.resolution <- args$resolution
+opt.scTransform <- args$scTransform
+opt.doDEG <- args$deg
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -67,17 +71,21 @@ env.misc$all.gene.ignore.df %>% head
 
 seu <- NULL
 sce <- NULL
-if(grepl("\\.rds$",seu.file)){
-	seu <- readRDS(seu.file)
-	sce <- readRDS(sce.file)
-}else{
-    if(file.exists(seu.file)){
-	    env.a <- loadToEnv(seu.file)
-	    obj.name.a <- names(env.a)[1]
-	    seu <- env.a[[obj.name.a]]
-	    rm(env.a)
+
+if(seu.file!="-" && file.exists(seu.file)){
+    if(grepl("\\.rds$",seu.file)){
+        seu <- readRDS(seu.file)
+    }else{
+        env.a <- loadToEnv(seu.file)
+        obj.name.a <- names(env.a)[1]
+        seu <- env.a[[obj.name.a]]
+        rm(env.a)
     }
-    if(file.exists(sce.file)){
+}
+if(sce.file!="-" && file.exists(sce.file)){
+    if(grepl("\\.rds$",sce.file)){
+        sce <- readRDS(sce.file)
+    }else{
         env.b <- loadToEnv(sce.file)
         obj.name.b <- names(env.b)[1]
         sce <- env.b[[obj.name.b]]
@@ -115,9 +123,16 @@ if(!is.null(seu) && !is.null(sce)){
 }
 
 tic("run.Seurat3")
-obj.list <- run.Seurat3(seu,sce,out.prefix,gene.exclude.df=env.misc$all.gene.ignore.df,n.top=1500,
-						measurement=opt.measurement,platform=opt.platform,use.sctransform=T,
-						opt.res=opt.resolution, opt.npc=opt.npc,ncores=opt.ncores)
+obj.list <- run.Seurat3(seu,sce,out.prefix,
+                        gene.exclude.df=env.misc$all.gene.ignore.df,
+                        n.top=1500,
+						measurement=opt.measurement,platform=opt.platform,
+                        use.sctransform=opt.scTransform,
+                        do.deg=opt.doDEG,
+                        ###do.adj=T,do.scale=F,
+                        plot.rd=c("umap"),
+						opt.res=opt.resolution,
+                        opt.npc=opt.npc,ncores=opt.ncores)
 toc()
 
 
