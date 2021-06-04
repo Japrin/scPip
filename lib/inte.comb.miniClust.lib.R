@@ -253,7 +253,7 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 								       #k=if(ncol(seu.x)<500) 10 else 20,
 								       dims = 1:15,nn.eps=0,force.recalc=T)
 			    res.hi <- if(ncol(seu.x)<500){ 25 } else res.hi
-			    seu.x <- FindClusters(seu.x,resolution =res.hi, algorithm=1)
+			    seu.x <- FindClusters(seu.x,resolution =res.hi, algorithm=1,verbose=F)
 		    }
 
 		    ###### single cell #####
@@ -516,9 +516,9 @@ run.inte.metaClust <- function(exp.list.table,
 	seu.merged$dataset.tech <- gsub("^.+?\\.","",seu.merged$dataset)
 
 	seu.merged <- RunPCA(seu.merged,features = rownames(seu.merged), npcs = npc, verbose = FALSE)
-	seu.merged <- RunUMAP(seu.merged,reduction="pca",dims=1:npc)
+	seu.merged <- RunUMAP(seu.merged,reduction="pca",dims=1:npc,verbose=F)
 	seu.merged <- RunHarmony(seu.merged, c("dataset"))
-	seu.merged <- RunUMAP(seu.merged,reduction = "harmony",reduction.name = "harmony.umap", dims = 1:npc)
+	seu.merged <- RunUMAP(seu.merged,reduction = "harmony",reduction.name = "harmony.umap", dims = 1:npc,verbose=F)
 	#seu.merged <- RunTSNE(seu.merged,reduction ="pca",tsne.method="FIt-SNE",dims=1:npc,reduction.name="tsne")
 	#seu.merged <- RunTSNE(seu.merged,reduction ="harmony",tsne.method="FIt-SNE",dims=1:npc,reduction.name="harmony.tsne")
 
@@ -532,9 +532,9 @@ run.inte.metaClust <- function(exp.list.table,
 	#resolution.vec <- seq(3.3,4.0,0.1)
 	if(method.clustering=="louvain") {
 		seu.merged <- FindNeighbors(seu.merged,reduction = "harmony", dims = 1:npc)
-		seu.merged <- FindClusters(seu.merged,resolution = resolution.vec)
+		seu.merged <- FindClusters(seu.merged,resolution = resolution.vec,verbose=F)
 		seu.merged <- FindNeighbors(seu.merged,reduction = "pca", dims = 1:npc,graph.name="RNA_pca_snn")
-		seu.merged <- FindClusters(seu.merged,resolution = resolution.vec,graph.name="RNA_pca_snn")
+		seu.merged <- FindClusters(seu.merged,resolution = resolution.vec,graph.name="RNA_pca_snn",verbose=F)
 	}else if(method.clustering=="leiden") {
 
 		loginfo("begin leiden (harmony) ...")

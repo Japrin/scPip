@@ -34,6 +34,7 @@ options(stringsAsFactors = FALSE)
 
 #env.misc <- loadToEnv(gene.exclude.file)
 
+#### data.id measurement     platform        defile  scefile seufile
 exp.list.table <- fread(cmd=sprintf("awk '!/^#/' %s",exp.list.file))
 
 RhpcBLASctl::omp_set_num_threads(1)
