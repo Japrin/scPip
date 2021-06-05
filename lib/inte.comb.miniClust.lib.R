@@ -268,8 +268,8 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    ###### single cell #####
 		    loginfo(sprintf("calculate mini-cluster level expression (dataset %s)",data.id))
 		    sce.x <- ssc.build(GetAssayData(seu.x,"scale.data"))
-		    loginfo(sprintf("all(colnames(sce.x)==sprintf("%s",colnames(seu.x)))? %s",
-				    all(colnames(sce.x)==sprintf("%s",colnames(seu.x)))))
+		    loginfo(sprintf("all(colnames(sce.x)==colnames(seu.x))? %s",
+				    all(colnames(sce.x)==colnames(seu.x))))
 		    sce.x$ClusterID <- sprintf("%s.C%04d",data.id,
 					       as.integer(as.character(seu.x@meta.data[[sprintf("RNA_snn_res.%d",res.hi)]])))
 		    dat.avg <- ssc.average.cell(sce.x,column="ClusterID",ret.type="data.mtx")
