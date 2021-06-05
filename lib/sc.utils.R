@@ -444,13 +444,13 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
 	    ######### UMAP
 	    tic("RunUMAP...")
-	    seu <- RunUMAP(object = seu, reduction = "pca",dims = 1:opt.npc)
+	    seu <- RunUMAP(object = seu, reduction = "pca",dims = 1:opt.npc,verbose=F)
 	    toc()
 	    
 	    ######### tSNE 
 	    if("tsne" %in% plot.rd){
             tic("RunTSNE...")
-            seu <- RunTSNE(object = seu, reduction = "pca",dims = 1:opt.npc)
+            seu <- RunTSNE(object = seu, reduction = "pca",dims = 1:opt.npc,verbose=F)
             toc()
 	    }
 
@@ -460,7 +460,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 	    seu <- FindNeighbors(object = seu, reduction = "pca", dims = 1:opt.npc)
 
 	    resolution.vec <- seq(0.1,2.4,0.1)
-	    seu <- FindClusters(object = seu,resolution = c(resolution.vec,res.addition))
+	    seu <- FindClusters(object = seu,resolution = c(resolution.vec,res.addition),verbose=F)
 
 	    for(t.res in resolution.vec){
             if(use.sctransform && platform!="SmartSeq2"){

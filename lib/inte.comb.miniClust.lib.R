@@ -1,23 +1,21 @@
-library("sscClust")
-library("Seurat")
-library("harmony") 
-library("tictoc")
-library("plyr")
-#library("dplyr")
-#library("tibble")
-library("doParallel")
-library("Matrix")
-library("data.table")
-library("R.utils")
-library("gplots")
-library("ggpubr")
-library("ggplot2")
-library("ggrepel")
-library("cowplot")
-library("limma")
-library("lisi")
-library("RColorBrewer")
-library("ComplexHeatmap")
+suppressPackageStartupMessages(library("sscClust"))
+suppressPackageStartupMessages(library("Seurat"))
+suppressPackageStartupMessages(library("harmony"))
+suppressPackageStartupMessages(library("tictoc"))
+suppressPackageStartupMessages(library("plyr"))
+suppressPackageStartupMessages(library("doParallel"))
+suppressPackageStartupMessages(library("Matrix"))
+suppressPackageStartupMessages(library("data.table"))
+suppressPackageStartupMessages(library("R.utils"))
+suppressPackageStartupMessages(library("gplots"))
+suppressPackageStartupMessages(library("ggpubr"))
+suppressPackageStartupMessages(library("ggplot2"))
+suppressPackageStartupMessages(library("ggrepel"))
+suppressPackageStartupMessages(library("cowplot"))
+suppressPackageStartupMessages(library("limma"))
+suppressPackageStartupMessages(library("lisi"))
+suppressPackageStartupMessages(library("RColorBrewer"))
+suppressPackageStartupMessages(library("ComplexHeatmap"))
 #library("metacell")
 
 #source("/lustre1/zeminz_pkuhpc/zhenglt/work/panC/ana/PanC.T/lib/plot.func.R")
@@ -90,7 +88,7 @@ HVG.From.GeneRankTb <- function(gene.rank.tb,n.common=1000,n.specific=1000,th.ra
     gene.rank.tb[,rank:=seq_len(nrow(gene.rank.tb))]
     gene.rank.mat <- as.matrix(gene.rank.tb[,-c("geneID","median.F.rank","rank")])
     rownames(gene.rank.mat) <- gene.rank.tb$geneID
-    print(gene.rank.mat[1:4,1:min(5,ncol(gene.rank.mat))])
+    #print(gene.rank.mat[1:4,1:min(5,ncol(gene.rank.mat))])
     gene.rank.comp.mat <- 1 - gene.rank.mat
     
     ###
@@ -108,7 +106,7 @@ HVG.From.GeneRankTb <- function(gene.rank.tb,n.common=1000,n.specific=1000,th.ra
 					}))
     f.specific.tb <- f.specific.tb[hasSpeGene==T,][order(medianRankSpeGene),]
     f.specific.tb[,rank:=seq_len(nrow(f.specific.tb))]
-    print(f.specific.tb[geneID %in% c("IL17A","IL17F","IL23R","RORC","IL26","IL22","IL21","CD4","CD8A","CD8B"),])
+    #print(f.specific.tb[geneID %in% c("IL17A","IL17F","IL23R","RORC","IL26","IL22","IL21","CD4","CD8A","CD8B"),])
     f.specific <- f.specific.tb[rank <= n.specific,][["geneID"]]
 
     ####
@@ -136,16 +134,19 @@ run.Leiden <- function(dat.pca,SNN.k=20,myseed=123456,...)
 	return(clust.res)
 }
 
+### cor.var, subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")
 mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.list,
-				   res.hi,method.clustering="louvain",contamination.vec=NULL,
-				   cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T)
+				   res.hi,method.clustering="louvain",
+				   #cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T,cor.ISG=F,
+				   cor.var=c("S.Score","G2M.Score","DIG.Score1"),
+				   contamination.vec=NULL)
 {
     ret.list <- llply(seq_len(nrow(exp.list.table)),function(i){
 		    data.id <- exp.list.table$data.id[i]
 		    ##### seu and sce --> seu.x
 		    seu <- seu.list[[i]]
 		    sce <- sce.list[[i]]
-		    cat(sprintf("all(colnames(seu)==colnames(sce)) in %s: %s\n",data.id,
+		    loginfo(sprintf("all(colnames(seu)==colnames(sce)) in %s: %s",data.id,
 					    all(colnames(seu)==colnames(sce))))
 		    dat.x <- assay(sce,"norm_exprs")
 		    if(!"seu.id" %in% colnames(rowData(sce))){
@@ -155,7 +156,7 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    #### pad zero
 		    {
 			gene.pad <- setdiff(gene.de.common,rownames(dat.x))
-			cat(sprintf("For dataset %s, those genes will be imputed by 0: %s\n",
+			loginfo(sprintf("For dataset %s, those genes will be imputed by 0: %s",
 						data.id, 
 						paste(gene.pad,collapse=", ")))
 			if(length(gene.pad)>0){
@@ -170,18 +171,18 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    score.MALAT1 <- assay(sce,"norm_exprs")[rowData(sce)[,"display.name"]=="MALAT1",]
 
 		    if(data.id %in% c("HCC.YaoHe10X","HCC.YaoHeSS2") ){
-                gene.MALAT1.vec <- c("MALAT1-ENSG00000251562")
+		gene.MALAT1.vec <- c("MALAT1-ENSG00000251562")
 		    }else{
-                gene.MALAT1.vec <- c("MALAT1")
+		gene.MALAT1.vec <- c("MALAT1")
 		    }
 		    #seu <- AddModuleScore(seu, features=list("score.MALAT1"=gene.MALAT1.vec), name="score.MALAT1",
 		    #					  pool = NULL, nbin = 24, ctrl = 100)
 
 		    sce <- NULL
 		    if(!is.null(contamination.vec)){
-                f.cell.cont <- sprintf("%s.%s",data.id,colnames(dat.x)) %in% contamination.vec
-                cat(sprintf("Number of contaminated cells (%s): %d\n",data.id,sum(f.cell.cont)))
-                dat.x <- dat.x[,!f.cell.cont]
+		f.cell.cont <- sprintf("%s.%s",data.id,colnames(dat.x)) %in% contamination.vec
+		loginfo(sprintf("Number of contaminated cells (%s): %d.",data.id,sum(f.cell.cont)))
+		dat.x <- dat.x[,!f.cell.cont]
 		    }
 		    seu.x <- CreateSeuratObject(dat.x,project="panC", meta.data=seu[[]][colnames(dat.x),])
 		    ### seu$score.MALAT11, two "1"
@@ -196,50 +197,58 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 									    Phase=seu.x$Phase,
 									    DIG.Score1=seu.x$DIG.Score1,
 									    score.MALAT1=seu.x$score.MALAT1,
+									    ISG.Score1=seu.x$ISG.Score1,
 									    percent.mito=NA,
 									    stringsAsFactors=F)
-		    adj.cov <-c()
-		    if(cor.cellCycle){
-                adj.cov <- c(adj.cov,c("S.Score","G2M.Score"))
-		    }
-		    if(cor.DIG){
-                adj.cov <- c(adj.cov,"DIG.Score1")
-		    }
-		    if(cor.MALAT1){
-                adj.cov <- c(adj.cov,"score.MALAT1")
-		    }
-            ###### patch ######
-            if(!"percent.mito" %in% colnames(seu.x[[]])) {
-                idx.pmt <- grep("^(percent.mito|percent.mt)$",colnames(seu.x[[]]),value=T,perl=T)
-                if(length(idx.pmt) > 0){
-                    seu.x$percent.mito <- seu.x[[]][,idx.pmt[1]]
-                }
-            }
-            if(!"patient" %in% colnames(seu.x[[]])) {
-                idx.patient <- grep("^(patient|Patient)$",colnames(seu.x[[]]),value=T,perl=T)
-                if(length(idx.patient) > 0){
-                    seu.x$patient <- seu.x[[]][,idx.patient[1]]
-                }else{
-                    seu.x$patient <- "PXX"
-                }
-            }
-            if(!"batchV" %in% colnames(seu.x[[]])) { seu.x$batchV <- seu.x$patient  }
-            ###################
+    ##		    adj.cov <-c()
+    ##		    if(cor.cellCycle){
+    ##                adj.cov <- c(adj.cov,c("S.Score","G2M.Score"))
+    ##		    }
+    ##		    if(cor.DIG){
+    ##               adj.cov <- c(adj.cov,"DIG.Score1")
+    ##		    }
+    ##		    if(cor.ISG){
+    ##                adj.cov <- c(adj.cov,"ISG.Score1")
+    ##		    }
+    ##		    if(cor.MALAT1){
+    ##                adj.cov <- c(adj.cov,"score.MALAT1")
+    ##		    }
+		    adj.cov <- cor.var
+	    ###### patch ######
+	    if(!"percent.mito" %in% colnames(seu.x[[]])) {
+		idx.pmt <- grep("^(percent.mito|percent.mt)$",colnames(seu.x[[]]),value=T,perl=T)
+		if(length(idx.pmt) > 0){
+		    seu.x$percent.mito <- seu.x[[]][,idx.pmt[1]]
+		}
+	    }
+	    if(!"patient" %in% colnames(seu.x[[]])) {
+		idx.patient <- grep("^(patient|Patient)$",colnames(seu.x[[]]),value=T,perl=T)
+		if(length(idx.patient) > 0){
+		    seu.x$patient <- seu.x[[]][,idx.patient[1]]
+		}else{
+		    seu.x$patient <- "PXX"
+		}
+	    }
+	    if(!"batchV" %in% colnames(seu.x[[]])) { seu.x$batchV <- seu.x$patient  }
+	    ###################
 
-            if("percent.mito" %in% colnames(seu.x[[]])){
-                adj.cov <- c("percent.mito",adj.cov)
-                meta.extra.tb$percent.mito <- seu.x$percent.mito
+	    if("percent.mito" %in% colnames(seu.x[[]])){
+		adj.cov <- c("percent.mito",adj.cov)
+		meta.extra.tb$percent.mito <- seu.x$percent.mito
 		    }
 
 		    nBatch <- length(table(seu.x$batchV))
 		    ###adj.cov <- c()
 		    if(nBatch>1){
-                adj.cov <- c("batchV",adj.cov)
+		adj.cov <- c("batchV",adj.cov)
 		    }
-		    cat(sprintf("adj.cov (%s): %s\n",data.id,paste(adj.cov,collapse=", ")))
-		    
+		    loginfo(sprintf("ScaleData on dataset %s, with adj.cov : %s ",
+				    data.id,
+				    paste(adj.cov,collapse=", ")))
 		    seu.x <- ScaleData(seu.x,do.scale=T,features=gene.de.common,
 						       vars.to.regress = adj.cov,verbose=F)
+		    
+		    loginfo(sprintf("find mini-clusters on dataset %s ",data.id))
 		    ###### Seurat high resolution ####
 		    seu.x <- RunPCA(seu.x,features=rownames(seu.x),npcs= 15,verbose = FALSE)
 		    if(method.clustering=="leiden"){
@@ -257,14 +266,16 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    }
 
 		    ###### single cell #####
+		    loginfo(sprintf("calculate mini-cluster level expression (dataset %s)",data.id))
 		    sce.x <- ssc.build(GetAssayData(seu.x,"scale.data"))
-		    print(all(colnames(sce.x)==sprintf("%s",colnames(seu.x))))
+		    loginfo(sprintf("all(colnames(sce.x)==sprintf("%s",colnames(seu.x)))? %s",
+				    all(colnames(sce.x)==sprintf("%s",colnames(seu.x)))))
 		    sce.x$ClusterID <- sprintf("%s.C%04d",data.id,
 					       as.integer(as.character(seu.x@meta.data[[sprintf("RNA_snn_res.%d",res.hi)]])))
 		    dat.avg <- ssc.average.cell(sce.x,column="ClusterID",ret.type="data.mtx")
 		    colnames(dat.avg) <- sprintf("%s", (colnames(dat.avg)))
 		    meta.extra.tb$miniCluster <- sce.x$ClusterID
-            loginfo(sprintf("to return from mergeDataFromFileTable() of dataset %s ",data.id))
+		    #loginfo(sprintf("to return from mergeDataFromFileTable() of dataset %s ",data.id))
 		    ### todo: save the new PCA result
 		    return(list("dat.avg"=dat.avg[gene.de.common,],
 					    "meta.extra.tb"=meta.extra.tb,
@@ -283,7 +294,7 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
                     colnames(sce) <- sprintf("%s.%s",data.id,colnames(sce))
                     if(!is.null(contamination.vec)){
                         f.cell.cont <- colnames(sce) %in% contamination.vec
-                        cat(sprintf("Number of contaminated cells (%s, mergeSCEDataFromFileTable): %d\n",
+                        loginfo(sprintf("Number of contaminated cells (%s, mergeSCEDataFromFileTable): %d",
                                     data.id,sum(f.cell.cont)))
                         sce <- sce[,!f.cell.cont]
                     }
@@ -307,7 +318,7 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
                     #### pad zero
                     {
                         gene.pad <- setdiff(gene.common,rownames(dat.avg))
-                        cat(sprintf("For dataset %s, %d genes will be imputed by 0\n",
+                        loginfo(sprintf("For dataset %s, %d genes will be imputed by 0",
                                     data.id, 
                                     length(gene.pad)))
                         if(length(gene.pad)>0){
@@ -322,22 +333,25 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
     return(ret.list)
 }
 
+### cor.var, subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")
 run.inte.metaClust <- function(exp.list.table,
 			       out.prefix,
 			       gene.exclude.file,
+			       nGene.common=1500,nGene.specific=0,
 			       ncores=12,npc=15,TH.gene.occ=1,
 			       res.hi=50,method.clustering="louvain",
-			       contamination.vec=NULL,
-			       cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T)
+			       #cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T,cor.ISG=F,
+			       cor.var=c("S.Score","G2M.Score","DIG.Score1"),
+			       contamination.vec=NULL)
 {
 	RhpcBLASctl::omp_set_num_threads(1)
 	doParallel::registerDoParallel(cores = ncores)
 
 	env.misc <- loadToEnv(gene.exclude.file)
-	cat(sprintf("black gene list:\n"))
-	env.misc$all.gene.ignore.df %>% head %>% print
+	loginfo(sprintf("A total of %d genes in the black list, the top ones:",nrow(env.misc$all.gene.ignore.df)))
+	print(head(env.misc$all.gene.ignore.df))
 
-	cat(sprintf("contamination.vec:\n"))
+	loginfo(sprintf("contamination.vec:"))
 	print(str(contamination.vec))
 
 	loginfo("read data ...")
@@ -373,13 +387,13 @@ run.inte.metaClust <- function(exp.list.table,
 	    gene.occ <- sort(gene.occ,decreasing=T)
 	    gene.common <- names(gene.occ)[gene.occ >= TH.gene.occ]
 	    gene.common.all <- names(gene.occ)[gene.occ >= 0.85]
-	    loginfo(sprintf("total %d common genes obtain ",length(gene.common)))
+	    loginfo(sprintf("total %d common genes obtained.",length(gene.common)))
 
 	    l_ply(names(sce.list),function(x){
 	      ##cat(sprintf("gene %s in dataset %s: %s\n","CX3CR1",x,"CX3CR1" %in% rowData(sce.list[[x]])[,"display.name"]))
 	      #cat(sprintf("gene %s in dataset %s: %s\n","MALAT1",x,"MALAT1" %in% rowData(sce.list[[x]])[,"display.name"]))
 	      #cat(sprintf("gene %s in dataset %s: %s\n","IL17A",x,"IL17A" %in% rowData(sce.list[[x]])[,"display.name"]))
-	      cat(sprintf("gene %s in dataset %s: %s\n","CCR8",x,"CCR8" %in% rowData(sce.list[[x]])[,"display.name"]))
+	      loginfo(sprintf("gene %s in dataset %s? %s.","CCR8",x,"CCR8" %in% rowData(sce.list[[x]])[,"display.name"]))
 	    },.parallel=T)
 
 	    gene.de.list <- list()
@@ -412,19 +426,20 @@ run.inte.metaClust <- function(exp.list.table,
 	    #gene.de.common <- head(gene.rank.tb[!f.gene.blackList,][["geneID"]],n=1500)
 	    saveRDS(gene.rank.tb[!f.gene.blackList,],sprintf("%s.gene.rank.tb.flt.rds",out.prefix))
 	    gene.de.common.tmp.tb <- HVG.From.GeneRankTb(gene.rank.tb[!f.gene.blackList,],
-						  n.common=1500,n.specific=1000,th.rank=0.1)
+						  n.common=nGene.common,n.specific=nGene.specific,th.rank=0.1)
 	    write.table(gene.de.common.tmp.tb,
-			file=sprintf("%s.gene.de.common.try00.1500.1000.tb",out.prefix),
+			file=sprintf("%s.gene.de.common%d.specific%s.tb",out.prefix,nGene.common,nGene.specific),
 			row.names=F,sep="\t",quote=F)
-	    gene.de.common.tmp.tb <- HVG.From.GeneRankTb(gene.rank.tb[!f.gene.blackList,],
-						  ##n.common=1500,n.specific=0,th.rank=0.1)
-						  ##n.common=750,n.specific=750,th.rank=0.1)
-						  n.common=1000,n.specific=1000,th.rank=0.1)
-	    write.table(gene.de.common.tmp.tb,
-			file=sprintf("%s.gene.de.common.1000.1000.tb",out.prefix),
-			row.names=F,sep="\t",quote=F)
-
 	    gene.de.common <- gene.de.common.tmp.tb$geneID
+
+#	    gene.de.common.tmp.tb <- HVG.From.GeneRankTb(gene.rank.tb[!f.gene.blackList,],
+#						  ##n.common=1500,n.specific=0,th.rank=0.1)
+#						  ##n.common=750,n.specific=750,th.rank=0.1)
+#						  n.common=1000,n.specific=1000,th.rank=0.1)
+#	    write.table(gene.de.common.tmp.tb,
+#			file=sprintf("%s.gene.de.common.1000.1000.tb",out.prefix),
+#			row.names=F,sep="\t",quote=F)
+#	    gene.de.common <- gene.de.common.tmp.tb$geneID
 
 	    cat(sprintf("RP gene in gene.de.common:\n"))
 	    print(gene.de.common[grepl("^RP[LS]",gene.de.common,perl=T)])
@@ -477,15 +492,17 @@ run.inte.metaClust <- function(exp.list.table,
 
 	loginfo("merge data ...")
 	dat.merged.list <- mergeDataFromFileTable(exp.list.table,gene.de.common,seu.list,sce.list,res.hi,
-						  contamination.vec=contamination.vec,
-						  cor.cellCycle=cor.cellCycle,cor.MALAT1=cor.MALAT1,cor.DIG=cor.DIG)
+						  #cor.cellCycle=cor.cellCycle,cor.MALAT1=cor.MALAT1,
+						  #cor.DIG=cor.DIG,cor.ISG=cor.ISG,
+						  cor.var=cor.var,
+						  contamination.vec=contamination.vec)
 	####dat.merged.list <- mergeDataFromFileTable(exp.list.table[1:2],gene.de.common,seu.list[1:2],sce.list[1:2],res.hi,contamination.vec=contamination.vec)
 	
 	dat.merged.mtx <- do.call(cbind,llply(dat.merged.list,function(x){ x[["dat.avg"]] }))
 	rownames(dat.merged.mtx) <- gsub("_","-",rownames(dat.merged.mtx))
-    print("dim(dat.merged.mtx)")
+	loginfo("dim(dat.merged.mtx):")
 	print(dim(dat.merged.mtx))
-	print(dat.merged.mtx[1:4,1:5])
+	print(dat.merged.mtx[1:4,1:3])
 
 	meta.extra.tb <- ldply(dat.merged.list,function(x){ x[["meta.extra.tb"]]})
 	rownames(meta.extra.tb) <- meta.extra.tb$cellID.uniq
@@ -496,7 +513,7 @@ run.inte.metaClust <- function(exp.list.table,
 	meta.tb <- as.data.table(meta.tb)
 
 	############# miniCluster size
-    dat.plot <- meta.tb[,.N,by=c("dataset","miniCluster")]
+	dat.plot <- meta.tb[,.N,by=c("dataset","miniCluster")]
 	p <- ggboxplot(dat.plot,x="dataset",y="N") +
 			theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5))
 	ggsave(file=sprintf("%s.miniCluster.size.png",out.prefix),width=10,height=5)
@@ -517,7 +534,7 @@ run.inte.metaClust <- function(exp.list.table,
 
 	seu.merged <- RunPCA(seu.merged,features = rownames(seu.merged), npcs = npc, verbose = FALSE)
 	seu.merged <- RunUMAP(seu.merged,reduction="pca",dims=1:npc,verbose=F)
-	seu.merged <- RunHarmony(seu.merged, c("dataset"))
+	seu.merged <- RunHarmony(seu.merged, c("dataset"),verbose=F)
 	seu.merged <- RunUMAP(seu.merged,reduction = "harmony",reduction.name = "harmony.umap", dims = 1:npc,verbose=F)
 	#seu.merged <- RunTSNE(seu.merged,reduction ="pca",tsne.method="FIt-SNE",dims=1:npc,reduction.name="tsne")
 	#seu.merged <- RunTSNE(seu.merged,reduction ="harmony",tsne.method="FIt-SNE",dims=1:npc,reduction.name="harmony.tsne")
@@ -569,6 +586,7 @@ run.inte.metaClust <- function(exp.list.table,
 	##### sce.merged contain all common genes
 	save(gene.common.all,exp.list.table,cellID2MiniClust.vec,contamination.vec,
 	     file=sprintf("%s.data.debug.mergeSCEDataFromFileTable.RData",out.prefix))
+	loginfo(sprintf("prepare sce.merged containing z-score expression of genes in gene.common.all"))
 	sce.merged <- ssc.build(do.call(cbind, mergeSCEDataFromFileTable(exp.list.table, gene.common.all,sce.list,
 									 cellID2MiniClust.vec,
 									 ncores=1,
