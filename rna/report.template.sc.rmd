@@ -1,0 +1,164 @@
+---
+title: "Visualization of Clustering Result"
+output:
+  BiocStyle::html_document:
+    df_print: paged
+    toc_float: true
+params:
+  date: !r Sys.Date()
+  printcode: TRUE
+  out.prefix: "./OUT.plot/sc"
+  meta.tb.file: NULL
+  sce.file: NULL
+  seu.file: NULL
+  plot.rd: "harmony.umap"
+  plot.GeneOnUmap.list: NULL
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(
+  fig.retina=1,fig.path=params$out.prefix,
+  dev=c("CairoPNG"),dpi=300,
+  echo = params$printcode
+)
+```
+
+```{r message=FALSE,warning=FALSE}
+library("sscVis")
+library("magrittr")
+library("data.table")
+library("ggpubr")
+library("ggplot2")
+library("ggrastr")
+library("ggrepel")
+library("RColorBrewer")
+library("grid")
+library("cowplot")
+library("plyr")
+library("kableExtra")
+
+meta.tb.file <- params$meta.tb.file
+sce.file <- params$sce.file
+plot.rd <- params$plot.rd
+plot.GeneOnUmap.list <- params$plot.GeneOnUmap.list
+
+out.prefix <- params$out.prefix
+dir.create(dirname(out.prefix),F,T)
+
+```
+# load data
+
+## load the meta data
+```{r loadMetaData}
+meta.tb <- NULL
+if(!is.null(meta.tb.file)){ meta.tb <- readRDS(meta.tb.file) }
+head(meta.tb) %>% kbl(caption = "Meta Info") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+## load the gene expression data
+```{r loadExpData}
+sce <- NULL
+if(!is.null(sce.file)){ sce <- readRDS(sce.file) }
+print(sce)
+```
+
+# UMAP plots
+
+## datasets
+
+colored by datasets
+```{r .umap.datasets,fig.width=6,fig.height=4}
+p <- ssc.plot.tsne(sce, columns = "dataset",
+                  reduced.name = plot.rd,
+                  colSet=list(),size=0.1,label=3,
+                  #vector.friendly=T,
+                  #par.geom_point = list(scale=1),
+                  par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
+                  base_aspect_ratio = 1.15)
+print(p)
+```
+
+colored and splitted by datasets
+```{r .umap.datasets.split,fig.width=12,fig.height=4}
+p <- ssc.plot.tsne(sce, columns = "dataset",
+		   splitBy="dataset",
+                  reduced.name = plot.rd,
+                  colSet=list(),size=0.1,label=3,
+                  #vector.friendly=T,
+                  #par.geom_point = list(scale=1),
+                  par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
+                  base_aspect_ratio = 1.15)
+print(p)
+```
+
+## resolutions
+```{r .umap.resolution,fig.width=9,fig.height=5.5}
+    resolution.vec <- grep("^RNA_snn_res",colnames(colData(sce)),perl=T,value=T)
+    plot.resolution.list <- list()
+    for(t.res in resolution.vec){
+	##cate.res <- sprintf("%s_res.%s",graph.name,t.res)
+	cate.res <- t.res
+	plot.resolution.list[[cate.res]] <- ssc.plot.tsne(sce,columns = cate.res,
+							  reduced.name = plot.rd,
+							  colSet=list(),size=0.1,label=2, base_aspect_ratio = 1.2)
+    }
+    for(i in seq_len(length(plot.resolution.list)/4))
+    {
+	pp <- plot_grid(plotlist=plot.resolution.list[((i-1)*4+1):(i*4)],
+					ncol = 2,align = "hv")
+	print(pp)
+    }
+
+```
+    
+## genes
+```{r}
+makeGeneOnTSNEPlot <- function(sce,rd,out.prefix,
+			       geneOnUmap.list=g.GeneOnUmap.list,
+			       plot.ncol=NULL,plot.nrow=NULL,plot.type="png",
+			       plot.width=NULL,plot.height=NULL,do.parallel=T,...)
+{
+    if(!is.null(out.prefix)){ dir.create(dirname(out.prefix),F,T) }
+    ## gene on umap
+    l_ply(seq_along(geneOnUmap.list),function(i){
+	gene.tmp <- intersect(geneOnUmap.list[[i]],rowData(sce)$display.name)
+	if(is.null(plot.ncol)){
+	    plot.ncol <- if(length(gene.tmp)>3) floor(sqrt(length(gene.tmp))+0.5) else 3
+	}
+	if(is.null(plot.nrow)){
+	    plot.nrow <- ceiling(length(gene.tmp)/plot.ncol)
+	}
+	if(is.null(plot.width)){
+	    plot.width <- if(plot.ncol > 3) 14 else if(plot.ncol>2) 10 else if(plot.ncol>1) 7  else 3.5
+	}
+	if(is.null(plot.height)){
+	    plot.height <- if(plot.nrow>3) 11 else if(plot.nrow>2) 8 else if(plot.nrow>1) 5.4 else 2.7
+	}
+	if(length(gene.tmp)>0){
+	    p <- ssc.plot.tsne(sce,assay.name="exprs",adjB=NULL,
+			       gene=gene.tmp,clamp=c(-0.5,1.5),
+			       ##gene=gene.tmp,clamp=c(-0.5,0.5),par.legend=list(breaks=c(-0.5,-0.25,0,0.25,0.5)),
+			       p.ncol=plot.ncol,
+			       ##par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha = 0.5),
+			       par.geneOnTSNE=list(scales="fixed",pt.order="random",pt.alpha = 0.5),
+			       reduced.name=sprintf("%s",rd),...)
+	    if(!is.null(out.prefix)){
+		ggsave(sprintf("%s.%s.marker.%s.%s", out.prefix,rd,
+			       names(geneOnUmap.list)[i],plot.type),
+		       width=plot.width, height=plot.height)
+	    }else{
+		print(p)
+	    }
+	}
+    },.parallel=do.parallel)
+}
+
+```
+
+```{r .umap.gene,fig.width=10,fig.height=8}
+#print(str(plot.GeneOnUmap.list))
+makeGeneOnTSNEPlot(sce,rd=plot.rd,out.prefix=NULL,
+		   geneOnUmap.list=plot.GeneOnUmap.list,
+		   do.parallel=F)
+
+```

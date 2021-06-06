@@ -28,14 +28,16 @@ saveRDS(args,file=sprintf("%s.args.rds",out.prefix))
 
 ####
 #exp.list.file <- "list/obj.T.list.r1.list"
-#out.prefix <- "./OUT.int.S3.T/int.S3.T"
+#out.prefix <- "./OUT.int.S3.T.2nd/int.S3.T"
 dir.create(dirname(out.prefix),F,T)
 
 ###opt.cor.var <- c("S.Score","G2M.Score", "DIG.Score1")
 
 g.src.dir <- sprintf("%s/../",this.dir())
 source(sprintf("%s/lib/inte.comb.miniClust.lib.R",g.src.dir))
+report.template.file <- sprintf("%s/rna/report.template.sc.rmd",g.src.dir)
 #source("/lustre1/zeminz_pkuhpc/zhenglt/02.pipeline/scPip/lib/inte.comb.miniClust.lib.R")
+#report.template.file <- "/lustre1/zeminz_pkuhpc/zhenglt/02.pipeline/scPip/rna/report.template.sc.rmd"
 
 ncores <- 12
 gene.exclude.file <- sprintf("%s/data/geneSet/exclude.gene.misc.misc.v3.RData",g.src.dir)
@@ -64,20 +66,31 @@ ret.list <- run.inte.metaClust(exp.list.table, out.prefix, gene.exclude.file,
 			       ncores=12,npc=15,res.hi=50,TH.gene.occ=0.85)
 toc()
 
-seu.merged <- ret.list[["seu.merged"]]
-sce.merged <- ret.list[["sce.merged"]]
-meta.tb <- ret.list[["meta.tb"]]
+#seu.merged <- ret.list[["seu.merged"]]
+#sce.merged <- ret.list[["sce.merged"]]
+#meta.tb <- ret.list[["meta.tb"]]
+
+tic("render_KnitReport ..")
+render_KnitReport(report.template.file,out.file=sprintf("%s.report.html",out.prefix),
+		  par.list=list("out.prefix"=sprintf("%s/plot.harmony.umap/%s",dirname(out.prefix),basename(out.prefix)),
+				"meta.tb.file"=sprintf("%s.meta.tb.rds",out.prefix),
+				"sce.file"=sprintf("%s.sce.merged.rds",out.prefix),
+				"plot.rd"="harmony.umap",
+				"plot.GeneOnUmap.list"=g.geneOnUmap.list))
+toc()
 
 #seu.merged <- readRDS(file=sprintf("%s.seu.merged.rds",out.prefix))
 #sce.merged <- readRDS(file=sprintf("%s.sce.merged.rds",out.prefix))
 #meta.tb <- readRDS(file=sprintf("%s.meta.tb.rds",out.prefix))
 
+
+
 #dataOnRDPlot(seu.merged,sce.merged,
 #			 sprintf("%s/%s/%s",dirname(out.prefix),"umap.algorithm1",basename(out.prefix)),
 #			 rd="umap",graph.name="RNA_pca_snn")
-dataOnRDPlot(seu.merged,sce.merged,
-			 sprintf("%s/%s/%s",dirname(out.prefix),"harmony.umap.algorithm1",basename(out.prefix)),
-			 rd="harmony.umap")
+#dataOnRDPlot(seu.merged,sce.merged,
+#			 sprintf("%s/%s/%s",dirname(out.prefix),"harmony.umap.algorithm1",basename(out.prefix)),
+#			 rd="harmony.umap")
 #dataOnRDPlot(seu.merged,sce.merged,
 #			 sprintf("%s/%s/%s",dirname(out.prefix),"tsne.Rtsne.algorithm1",basename(out.prefix)),
 #			 rd="tsne.Rtsne",graph.name="RNA_pca_snn")

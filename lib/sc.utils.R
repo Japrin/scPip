@@ -43,77 +43,66 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 {
 
     g.geneOnUmap.list <- list(
-			 "epithelial.01"=c("EPCAM", "SFN", "KRT8", "KRT10","KRT18",
-					      "KRT19","KRTCAP3","KRT15",""),
-			 "B.01"=c("BLK", "CD19", "CD70", "CD79A","CD79B",
-				     "MS4A1","FCER2","SDC1","JCHAIN"),
-			"Macrophase.01"=c("CD68","THBS1","CD163", "C1QA","APOE",
-					  "FCGR3A","MARCO", "S100A4","S100A9"),
-			"Macrophase.02"=c("HLA-DQA1", "CST3", "LYZ", "ISGF6","FUT4",
-					  "SEPP1","IFI30","FCGR1A","GPNMB"),
-			"Macrophase.03"=c("CTSK", "MMP9", "SIGLEC15", "LYVE1","SPP1",
-					  "FOLR2","C1QC","TREM2","LPL"),
-			"Macrophase.04"=c("MT1G", "CCL18", "CD36", "CD52","FABP4",
-					  "C3","CXCL8","PDK4","HK2"),
-			"Macrophase.05"=c("FCN1", "IL1B", "NLRP3", "PLTP","CCR2",
-					  "CCL2","CCL18","MMP9","SLC2A1"),
-			"Macrophase.06"=c("GCHFR","CTSD","CTSL","CTSB", "APOE","APOC1",
-					  "CCL2","CCL18","SLC2A1"),
-			"Macrophase.07"=c("S100A8","S100A9", "CXCL10", "CXCL11", "OLR1",
-					      "IDO1","CALHM6","FN1","SERPINA1"),
-			"Macrophase.08"=c("CD14","FCGR3A", "CX3CR1", "MT1G", "CCL2",
-					  "SLC2A1","FABP4","FOLR2","LYVE1"),
-			"Macrophase.09"=c("FCN1","IL1B","GPNMB","C1QC","SPP1","TREM2","LYZ","CSF1R","CD163"),
-			"Monocyte"=c("CD14","VCAN", "S100A9","FCGR3A","FCEG1G",
-				     "LST1","ITGAM", "HLA-DQA1","PTPRC"),
-			"DC.01"=c("LILRA4","CD1C", "CLEC9A","CLEC10A","FCER1A",
-				  "RSG2","LAMP3", "THBD", "IDO1"),
-			"DC.02"=c("ITGAX","IRF4", "IRF8", "CD274", "LTB",
+			      "epithelial.01"=c("EPCAM", "SFN", "KRT8", "KRT10","KRT18",
+						"KRT19","KRTCAP3","KRT15",""),
+			      "endothelial"=c("PECAM1","VWF","CDH5","PLVAP","CLDN5",
+					      "SLCO2A1","RAMP2","EGFL7","EMCN"),
+			      "CAF"=c("DCN", "COL1A2", "COL1A1", "COL3A1", "COL6A2", "COL6A1",
+				      "PCOLCE", "C1S", "LUM"),
+			      "SMC"=c("MYH11", "ACTA2", "TAGLN", "CNN1", "MYL9",
+				      "DES", "TPM2", "MYLK", "PLN"),
+			      "B.01"=c("BLK", "CD19", "CD70", "CD79A","CD79B",
+				       "MS4A1","FCER2","SDC1","JCHAIN"),
+			      "Mast"=c("ENPP3", "KIT", "PTPRC", "TPSB2","SLC18A2",
+				       "FCER1A", "TPSAB1", "CPA3", "HPGDS"),
+			      "Neutrophils"=c("FUT4","CD3E","TLR2","CD14","CD33","FCGR1A","CSF3R","",""),
+			      "Monocyte"=c("CD14","VCAN", "S100A9","FCGR3A","FCEG1G",
+					   "LST1","ITGAM", "HLA-DQA1","PTPRC"),
+			      "DC.01"=c("LILRA4","CD1C", "CLEC9A","CLEC10A","FCER1A",
+					"RSG2","LAMP3", "THBD", "IDO1"),
+			      "DC.02"=c("ITGAX","IRF4", "IRF8", "CD274", "LTB",
 				  "CCL19","CCL21","IL3RA","NRP1","CLE4C"),
-			"Mast"=c("ENPP3", "KIT", "PTPRC", "TPSB2","SLC18A2",
-				 "FCER1A", "TPSAB1", "CPA3", "HPGDS"),
-			"Granulocyte"=c("CEACAM1","CEACAM6","CEACAM3","ENPP3","CD3E","","","",""),
-			"Neutrophils"=c("FUT4","CD3E","TLR2","CD14","CD33","FCGR1A","CSF3R","",""),
-			"NK"=c("FCGR3A", "NCR1","NCAM1","CD3E", "NKG7",
-			       "KLRD1","KIR2DL3","KIR3DL2","KLRB1"),
-			"ILC"=c("IL4I1","KIT","KRT86","KRT81","ZFP36L1",
-				"IL23R","CD83","NR4A1","EEF1A1"),
-			"T.01"=c("CD4", "CD8A", "CD8B", "CD2", "CD3D",
-				 "CD3G", "NKG7", "GNLY", "FGFBP2"),
-			"T.02"=c("CX3CR1", "GZMK", "ZNF683", "IL7R","GZMB",
-				 "CD40LG","FOXP3","CCR7","MKI67"),
-			"T.03"=c("TRGC1","TRGC2","TRBC1","TRBC2","TRDC",
-				 "TRAC","FOXP3","IL2RA","CD40LG"),
-			"T.04"=c("CCR7","GZMK","LAYN","HAVCR2","CXCL13",
-				 "CX3CR1","ZNF683","S1PR1","RGS1"),
-			"T.05"=c("CXCR6","SLC4A10","CCL5","CD160","CD6",
-				 "TMIGD2","MAL","SELL","KIR2DL4"),
-			"T.06"=c("IL17A","GZMA","CXCR6","HAVCR2","CXCR5",
-				 "BCL6","RORC","IL23R","IFNG"),
-			"T.07"=c("SELL","MAL","TCF7","CTLA4","IL10",
-				 "IL2RA","ANXA1","ANXA2","TNFRSF9"),
-			"T.08"=c("CCL4L2","CCL4","XCL1","XCL2","CRTAM",
-				 "RGCC","LMNA","FCER1G","KRT81"),
-			"T.09"=c("ENTPD1","LAYN","CTLA4","TNFRSF9", "MYO1E",
-				 "MYO7A", "KRT86", "RBPJ", "TIGIT"),
-			"T.10"=c("SIRPG", "GEM", "PHLDA1", "TNFRSF18", "AFAP1L2",
-				 "DUSP4", "MIR155HG","PDCD1","TOX"),
-			##"CAF"=c("COL1A1","COL1A2","COL6A1","COL6A2","COL6A3",
-			##	    "DCN","FAP","THY1","LUM"),
-			"CAF"=c("DCN", "COL1A2", "COL1A1", "COL3A1", "COL6A2", "COL6A1",
-				   "PCOLCE", "C1S", "LUM"),
-			"endothelial"=c("PECAM1","VWF","CDH5","PLVAP","CLDN5",
-					"SLCO2A1","RAMP2","EGFL7","EMCN"),
-			"SMC"=c("MYH11", "ACTA2", "TAGLN", "CNN1", "MYL9",
-				"DES", "TPM2", "MYLK", "PLN"),
-			"cellCycle"=c("TYMSOS","PCLAF","TYMS","ZWINT","MCM2",
-				      "MIR3917","UHRF1","TK1","MKI67"),
-			"IFN"=c("ISG15","ISG20","IFIT1","IFIT2","IRF7",
-				"OAS1","OAS2","STAT1"),
-			"stress"=c("DNAJB1","DUSP1","FOS","JUN","HSP90AA1",
-				   "HSP90AB1","HSPA1A","HSPA6"),
-			"other.01"=c("PTPRC", "RGS1", "S1PR1", "ITGAE","HAVCR2",
-				     "CXCL13","TNFRSF9","CTLA4","MALAT1")
+			      "Macrophase.01"=c("CD68","THBS1","CD163", "C1QA","APOE",
+						"FCGR3A","MARCO", "S100A4","S100A9"),
+			      "Macrophase.02"=c("HLA-DQA1", "CST3", "LYZ", "ISGF6","FUT4",
+						"SEPP1","IFI30","FCGR1A","GPNMB"),
+			      "Macrophase.03"=c("CTSK", "MMP9", "SIGLEC15", "LYVE1","SPP1",
+						"FOLR2","C1QC","TREM2","LPL"),
+			      "Macrophase.04"=c("MT1G", "CCL18", "CD36", "CD52","FABP4",
+						"C3","CXCL8","PDK4","HK2"),
+			      "Macrophase.05"=c("FCN1", "IL1B", "NLRP3", "PLTP","CCR2",
+						"CCL2","CCL18","MMP9","SLC2A1"),
+			      "Macrophase.06"=c("GCHFR","CTSD","CTSL","CTSB", "APOE","APOC1",
+						"CCL2","CCL18","SLC2A1"),
+			      "Macrophase.07"=c("S100A8","S100A9", "CXCL10", "CXCL11", "OLR1",
+					      "IDO1","CALHM6","FN1","SERPINA1"),
+			      "Macrophase.08"=c("CD14","FCGR3A", "CX3CR1", "MT1G", "CCL2",
+						"SLC2A1","FABP4","FOLR2","LYVE1"),
+			      "Macrophase.09"=c("FCN1","IL1B","GPNMB","C1QC","SPP1","TREM2","LYZ","CSF1R","CD163"),
+			      ##"Granulocyte"=c("CEACAM1","CEACAM6","CEACAM3","ENPP3","CD3E","","","",""),
+			      "NK"=c("FCGR3A", "NCR1","NCAM1","CD3E", "NKG7",
+				     "KLRD1","KIR2DL3","KIR2DL4","KLRB1"),
+			      #"ILC"=c("IL4I1","KIT","KRT86","KRT81","ZFP36L1", "IL23R","CD83","NR4A1","EEF1A1"),
+			      "T.01"=c("CD4", "CD8A", "CD8B", "CD2", "CD3D",
+				       "CD3G", "NKG7", "GNLY", "FGFBP2"),
+			      "T.02"=c("CX3CR1", "GZMK", "ZNF683","CD40LG","FOXP3",
+				       "TNFRSF9","IL7R","IL2RA","TYROBP"),
+			      "T.03"=c("TRGC1","TRGC2","TRBC1","TRBC2","TRDC",
+				       "TRAC","TRGV9","TRDV2","TRAV1-2"),
+			      "T.04"=c("CCR7","GZMK","LAYN","HAVCR2","CXCL13",
+				       "CX3CR1","ZNF683","SLC4A10","CD160"),
+			      "T.05"=c("IL17A","RORC","IL23R","CCR6","BCL6",
+				       "CXCR5", "CXCR6","XCL1","XCL2"),
+			      "T.06"=c("TCF7","MAL","CCL5","CCL4","CCL4L2",
+				       "GZMA","GPR183","EOMES","KLRG1"),
+			      "T.07"=c("PDCD1","CTLA4","IFNG","TNF","GZMB",
+				       "RGS1","S1PR1","ITGAE","MALAT1"),
+			      "cellCycle"=c("TYMSOS","PCLAF","TYMS","ZWINT","MCM2",
+					    "MIR3917","UHRF1","TK1","MKI67"),
+			      "ISG"=c("ISG15","ISG20","IFIT1","IFIT2",
+				      "IRF7", "OAS1","OAS2","STAT1"),
+			      "DIG"=c("DNAJB1","DUSP1","FOS","JUN","HSP90AA1",
+				      "HSP90AB1","HSPA1A","HSPA6")
 						    )
 }
 
@@ -581,54 +570,54 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 }
 
 cal.signatureScore.gdT.Fred <- function(obj,GSx=c("CD3D","CD3E","TRDC","TRGC1","TRGC2"),
-									GSy=c("CD8A","CD8B"),
-									col.name="Score.gammaDeltaT",th.score=0.35,out.prefix=NULL)
+					GSy=c("CD8A","CD8B"),
+					col.name="Score.gammaDeltaT",th.score=0.35,out.prefix=NULL)
 {
-	if(!all(GSx %in% rowData(obj)$display.name) || !all(GSy %in% rowData(obj)$display.name)){
-		warning(sprintf("not all genes in GSx and GSy in the obj !!\n"))
-		return(obj)
-	}
+    if(!all(GSx %in% rowData(obj)$display.name) || !all(GSy %in% rowData(obj)$display.name)){
+	    warning(sprintf("not all genes in GSx and GSy in the obj !!\n"))
+	    return(obj)
+    }
 
-	f.gene <- which(rowData(obj)$display.name %in% GSx)
-	GSx <- rowData(obj)$display.name[f.gene]
-	f.gene <- which(rowData(obj)$display.name %in% GSy)
-	GSy <- rowData(obj)$display.name[f.gene]
-	count.tot <- colSums(assay(obj,"counts"))
-	GSx.tot <- colSums(assay(obj,"counts")[names(GSx),])
-	GSy.tot <- colSums(assay(obj,"counts")[names(GSy),])
-	GSx.score <- GSx.tot/count.tot
-	GSy.score <- -GSy.tot/count.tot
-	GSx.score <- (GSx.score-min(GSx.score))/(max(GSx.score)-min(GSx.score))
-	GSy.score <- (GSy.score-min(GSy.score))/(max(GSy.score)-min(GSy.score))
-	comb.score <- GSx.score * GSy.score
-	colData(obj)[[col.name]] <- comb.score
-	colData(obj)[[sprintf("%s.pred.th",col.name)]] <- (comb.score > th.score)
-	print(table(obj$stype,obj[[sprintf("%s.pred.th",col.name)]]))
-	bin.tb <- sscClust::classify.outlier(comb.score,out.prefix=out.prefix,e.name="Score",th.score=th.score)
-	all(bin.tb$sample==colnames(obj))
-	colData(obj)[[sprintf("%s.pred.auto",col.name)]] <-(bin.tb$score.cls.tb$classification==1)
-	print(table(obj$stype,obj[[sprintf("%s.pred.auto",col.name)]]))
-	freq.tb <- unclass(table(obj$stype,obj[[sprintf("%s.pred.auto",col.name)]]))
-	freq.tb <- 100*sweep(freq.tb,1,rowSums(freq.tb),"/")
+    f.gene <- which(rowData(obj)$display.name %in% GSx)
+    GSx <- rowData(obj)$display.name[f.gene]
+    f.gene <- which(rowData(obj)$display.name %in% GSy)
+    GSy <- rowData(obj)$display.name[f.gene]
+    count.tot <- colSums(assay(obj,"counts"))
+    GSx.tot <- colSums(assay(obj,"counts")[names(GSx),])
+    GSy.tot <- colSums(assay(obj,"counts")[names(GSy),])
+    GSx.score <- GSx.tot/count.tot
+    GSy.score <- -GSy.tot/count.tot
+    GSx.score <- (GSx.score-min(GSx.score))/(max(GSx.score)-min(GSx.score))
+    GSy.score <- (GSy.score-min(GSy.score))/(max(GSy.score)-min(GSy.score))
+    comb.score <- GSx.score * GSy.score
+    colData(obj)[[col.name]] <- comb.score
+    colData(obj)[[sprintf("%s.pred.th",col.name)]] <- (comb.score > th.score)
+    print(table(obj$stype,obj[[sprintf("%s.pred.th",col.name)]]))
+    bin.tb <- sscClust::classify.outlier(comb.score,out.prefix=out.prefix,e.name="Score",th.score=th.score)
+    all(bin.tb$sample==colnames(obj))
+    colData(obj)[[sprintf("%s.pred.auto",col.name)]] <-(bin.tb$score.cls.tb$classification==1)
+    print(table(obj$stype,obj[[sprintf("%s.pred.auto",col.name)]]))
+    freq.tb <- unclass(table(obj$stype,obj[[sprintf("%s.pred.auto",col.name)]]))
+    freq.tb <- 100*sweep(freq.tb,1,rowSums(freq.tb),"/")
 
-	### subtypes: delta 1 and delta 2
-	gene.GC1 <- c("TRGC1")
-	gene.GC2 <- c("TRGC2")
-	f.gene <- which(rowData(obj)$display.name %in% gene.GC1)
-	gene.GC1 <- rowData(obj)$display.name[f.gene]
-	f.gene <- which(rowData(obj)$display.name %in% gene.GC2)
-	gene.GC2 <- rowData(obj)$display.name[f.gene]
-	exp.diff <- assay(obj,"norm_exprs")[names(gene.GC1),] - assay(obj,"norm_exprs")[names(gene.GC2),]
-	f.isGammDeltaT <- obj[[sprintf("%s.pred.auto",col.name)]]==T
-	colData(obj)[[sprintf("%s.auto.subtype",col.name)]] <- "NotGammaDeltaT"
-	colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff==0 & f.isGammDeltaT] <- "undetermined"
-	colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff>0 & f.isGammDeltaT] <- "delta2"
-	colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff<0 & f.isGammDeltaT] <- "delta1"
-	colData(obj)[[sprintf("%s.auto.subtype",col.name)]] <- factor(colData(obj)[[sprintf("%s.auto.subtype",col.name)]],
-																  levels=c("delta1","delta2","undetermined","NotGammaDeltaT"))
-	table(obj[[sprintf("%s.pred.auto",col.name)]],obj[[sprintf("%s.auto.subtype",col.name)]])
+    ### subtypes: delta 1 and delta 2
+    gene.GC1 <- c("TRGC1")
+    gene.GC2 <- c("TRGC2")
+    f.gene <- which(rowData(obj)$display.name %in% gene.GC1)
+    gene.GC1 <- rowData(obj)$display.name[f.gene]
+    f.gene <- which(rowData(obj)$display.name %in% gene.GC2)
+    gene.GC2 <- rowData(obj)$display.name[f.gene]
+    exp.diff <- assay(obj,"norm_exprs")[names(gene.GC1),] - assay(obj,"norm_exprs")[names(gene.GC2),]
+    f.isGammDeltaT <- obj[[sprintf("%s.pred.auto",col.name)]]==T
+    colData(obj)[[sprintf("%s.auto.subtype",col.name)]] <- "NotGammaDeltaT"
+    colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff==0 & f.isGammDeltaT] <- "undetermined"
+    colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff>0 & f.isGammDeltaT] <- "delta2"
+    colData(obj)[[sprintf("%s.auto.subtype",col.name)]][exp.diff<0 & f.isGammDeltaT] <- "delta1"
+    colData(obj)[[sprintf("%s.auto.subtype",col.name)]] <- factor(colData(obj)[[sprintf("%s.auto.subtype",col.name)]],
+								  levels=c("delta1","delta2","undetermined","NotGammaDeltaT"))
+    table(obj[[sprintf("%s.pred.auto",col.name)]],obj[[sprintf("%s.auto.subtype",col.name)]])
 
-	return(obj)
+    return(obj)
 }
 
 inSilico.TGammaDelta <- function(obj,out.prefix=NULL,assay.name="norm_exprs",vis.v=c(0.25,0.5),
