@@ -148,7 +148,9 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 	}
 
     if(is.null(gene.mapping.table)){
-        gene.mapping.table <- data.table(geneID=rownames(seu),seu.id=rownames(seu),display.name=rownames(seu))
+        gene.mapping.table <- data.table(geneID=as.character(rownames(seu)),
+                                         seu.id=as.character(rownames(seu)),
+                                         display.name=as.character(rownames(seu)))
     }
 
 	if(is.null(sce) && !is.null(seu)){
@@ -552,6 +554,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
 	if(do.deg){
 	    dir.create(sprintf("%s/limma",dirname(out.prefix)),F,T)
+
 	    tic("limma")
 	    de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,ncell.downsample=ncell.deg,
 				       group.var="ClusterID",batch=if(nBatch>1) "batchV" else NULL,
@@ -559,11 +562,12 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 							  dirname(out.prefix),basename(out.prefix)),
 				       n.cores=ncores,verbose=3, group.mode="multiAsTwo",
 				       T.logFC=if(platform=="SmartSeq2") 1 else 0.25)
+	    toc()
+
 	    saveRDS(de.out,file=sprintf("%s.de.out.limma.rda",
 					sprintf("%s/limma/%s",
 						dirname(out.prefix),
 						basename(out.prefix))))
-	    toc()
 	}
 
 	return(list("seu"=seu,"sce"=sce))

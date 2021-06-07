@@ -15,6 +15,7 @@ parser$add_argument("-r", "--resolution",type="character",default="2",help="[def
 parser$add_argument("-t", "--scTransform",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-g", "--deg",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-f", "--filterout",type="character",help="filterout cells")
+parser$add_argument("-k", "--keep",type="character",help="keep cells")
 parser$add_argument("-p", "--platform",type="character",required=TRUE,help="platform such as 10X, SmartSeq2")
 args <- parser$parse_args()
 print(args)
@@ -32,6 +33,8 @@ opt.stype <- args$stype
 opt.resolution <- args$resolution
 opt.scTransform <- args$scTransform
 opt.doDEG <- args$deg
+opt.filterout <- args$filterout
+opt.keep <- args$keep
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -105,15 +108,34 @@ if(!is.null(seu) && "percent.mito" %in% colnames(seu[[]])){
 	}
 }
 
-if(!is.null(seu) && !is.null(args$filterout)){
-	if(!file.exists(args$filterout)){
-		col.filter <- unlist(strsplit(args$filterout,":"))[1]
-		col.value <- unlist(strsplit(unlist(strsplit(args$filterout,":"))[2],","))
-		cat(sprintf("filter cells with %s in c(%s)\n",col.filter,paste(col.value,collapse=",")))
-		f.cell <- seu[[]][,col.filter] %in% col.value
-		print(summary(f.cell))
-		seu <- seu[,!f.cell]
+if(!is.null(seu) && !is.null(opt.filterout)){
+	if(!file.exists(opt.filterout)){
+		col.filter <- unlist(strsplit(opt.filterout,":"))[1]
+		col.value <- unlist(strsplit(unlist(strsplit(opt.filterout,":"))[2],","))
+        if(col.filter %in% colnames(seu[[]])){
+            cat(sprintf("filter cells with %s in c(%s)\n",col.filter,paste(col.value,collapse=",")))
+            f.cell <- seu[[]][,col.filter] %in% col.value
+            print(summary(f.cell))
+            seu <- seu[,!f.cell]
+        }else{
+            warning(sprintf("The meta-data doesnot contain %s\n",col.filter))
+        }
 	}
+}
+
+if(!is.null(seu) && !is.null(opt.keep)){
+	if(!file.exists(opt.keep)){
+		col.keep <- unlist(strsplit(opt.keep,":"))[1]
+		col.value <- unlist(strsplit(unlist(strsplit(opt.keep,":"))[2],","))
+        if(col.keep %in% colnames(seu[[]])){
+            cat(sprintf("keep cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
+            f.cell <- seu[[]][,col.keep] %in% col.value
+            print(summary(f.cell))
+            seu <- seu[,f.cell]
+        }else{
+            warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
+        }
+    }
 }
 
 if(!is.null(seu) && !is.null(sce)){
