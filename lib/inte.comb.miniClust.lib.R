@@ -1052,7 +1052,7 @@ dataOnRDPlot <- function(seu,sce,out.prefix,rd="umap",graph.name="RNA_snn",resol
 			  base_aspect_ratio=0.9,base_height=5.5)
     }
 
-    makeGeneOnTSNEPlot(sce,rd,out.prefix,geneOnUmap.list=g.GeneOnUmap.list)
+    makeGeneOnTSNEPlot(sce,rd,out.prefix,geneOnUmap.list=g.geneOnUmap.list)
 
     #### density
     ssc.plot.tsne(sce,plotDensity=T,reduced.name=sprintf("%s",rd),
