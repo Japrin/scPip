@@ -40,7 +40,7 @@ suppressPackageStartupMessages(library("ComplexHeatmap"))
 			      "Monocyte"=c("CD14","VCAN", "S100A9","FCGR3A","FCEG1G",
 					   "LST1","ITGAM", "HLA-DQA1","PTPRC"),
 			      "DC.01"=c("LILRA4","CD1C", "CLEC9A","CLEC10A","FCER1A",
-					"RSG2","LAMP3", "THBD", "IDO1"),
+					"RSG2","LAMP3", "THBD", "CD1A"),
 			      "DC.02"=c("ITGAX","IRF4", "IRF8", "CD274", "LTB",
 				  "CCL19","CCL21","IL3RA","NRP1","CLE4C"),
 			      "Macrophase.01"=c("CD68","THBS1","CD163", "C1QA","APOE",

@@ -13,7 +13,11 @@ parser$add_argument("-n", "--ncores", type="integer",default=16L, help="[default
 parser$add_argument("-m", "--measurement",type="character",default="counts",help="[default %(default)s]")
 parser$add_argument("-r", "--resolution",type="character",default="2",help="[default %(default)s]")
 parser$add_argument("-t", "--scTransform",action="store_true",default=FALSE,help="[default %(default)s]")
+parser$add_argument("-y", "--harmony",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-g", "--deg",action="store_true",default=FALSE,help="[default %(default)s]")
+parser$add_argument("-s", "--scale",action="store_true",default=FALSE,help="[default %(default)s]")
+parser$add_argument("-j", "--corVar", type="character", default="S.Score,G2M.Score,DIG.Score1",
+		    help="subset of S.Score,G2M.Score,DIG.Score1,ISG.Score1, or NULL. If correct something, always correct for batchV and percent.mito. [default %(default)s]")
 parser$add_argument("-f", "--filterout",type="character",help="filterout cells")
 parser$add_argument("-k", "--keep",type="character",help="keep cells")
 parser$add_argument("-p", "--platform",type="character",required=TRUE,help="platform such as 10X, SmartSeq2")
@@ -32,7 +36,10 @@ opt.platform <- args$platform
 opt.stype <- args$stype
 opt.resolution <- args$resolution
 opt.scTransform <- args$scTransform
+opt.harmony <- args$harmony
 opt.doDEG <- args$deg
+opt.scale <- args$scale
+opt.cor.var <- if(args$corVar=="") c("") else unlist(strsplit(args$corVar,",",perl=T))
 opt.filterout <- args$filterout
 opt.keep <- args$keep
 
@@ -150,8 +157,11 @@ obj.list <- run.Seurat3(seu,sce,out.prefix,
                         n.top=1500,
 						measurement=opt.measurement,platform=opt.platform,
                         use.sctransform=opt.scTransform,
+                        use.harmony=opt.harmony,
                         do.deg=opt.doDEG,
                         ###do.adj=T,do.scale=F,
+			            cor.var=opt.cor.var,
+                        do.scale=opt.scale,
                         plot.rd=c("umap"),
 						opt.res=opt.resolution,
                         opt.npc=opt.npc,ncores=opt.ncores)

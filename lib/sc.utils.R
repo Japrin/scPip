@@ -6,6 +6,7 @@ require("dplyr")
 require("cowplot")
 require("plyr")
 require("ggplot2")
+suppressPackageStartupMessages(library("harmony"))
 
 ###################### variable genes
 run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
@@ -20,7 +21,7 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 	#### counts, cpm
 	hvg.gene.info <- seu@assays$RNA@meta.features %>% 
 		tibble::rownames_to_column(var="geneSymbol") %>%
-		arrange(desc(vst.variance.standardized))
+		arrange((-vst.variance.standardized))
     }
     f.hvg <- !(hvg.gene.info$geneSymbol %in% gene.exclude.df[["seu.id"]]) &
 	!(grepl("^RP[LS]",hvg.gene.info$geneSymbol,perl=T)) &
@@ -106,10 +107,15 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 						    )
 }
 
+### cor.var, subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1") or NULL
 run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 			measurement="counts",platform="10X",
 			opt.res="1",use.sctransform=F,aid="PRJ",plot.rd=c("umap","tsne"),
-			opt.npc=15,ncores=16,do.adj=T,ncell.deg=1500,do.deg=F,do.scale=F,
+			opt.npc=15,ncores=16,
+            #do.adj=T,
+            cor.var=c("S.Score","G2M.Score","DIG.Score1"),
+            ncell.deg=1500,do.deg=F,do.scale=F,
+            use.harmony=F,
 			gene.mapping.table=NULL,res.addition=NULL,
 			run.stage=100)
 {
@@ -195,7 +201,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     }
     if(!"patient" %in% colnames(seu[[]]))
     {
-        idx.patient <- grep("^(patient|Patient)$",colnames(seu[[]]),value=T,perl=T)
+        idx.patient <- grep("^(patient|Patient|PatientID)$",colnames(seu[[]]),value=T,perl=T)
         if(length(idx.patient) > 0){
             seu$patient <- seu[[]][,idx.patient[1]]
         }else{
@@ -208,6 +214,8 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     ###################
 
 	nBatch <- length(table(sce$batchV))
+    loginfo(sprintf("Total batchs: %d",nBatch))
+    print(str(table(sce$batchV)))
 
 	#####
 	
@@ -299,8 +307,10 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 	    }
 
 	    ## gene on umap
+        loginfo(sprintf("bein plotting geneOnUmap ..."))
 	    l_ply(seq_along(g.geneOnUmap.list),function(i){
             gene.tmp <- intersect(g.geneOnUmap.list[[i]],rowData(sce)$display.name)
+            loginfo(sprintf("(begin) geneSet %s",names(g.geneOnUmap.list)[i]))
             if(length(gene.tmp)>0){
                 p <- ssc.plot.tsne(sce,assay.name=assay.name,adjB=if(nBatch>1) "batchV" else NULL,
                            gene=gene.tmp,
@@ -311,7 +321,9 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
                        width=10,
                        height=if(length(gene.tmp)>9) 11 else if(length(gene.tmp)>6) 8 else if(length(gene.tmp)>3) 5.4 else 2.7)
             }
+            loginfo(sprintf("(end) geneSet %s",names(g.geneOnUmap.list)[i]))
 	    },.parallel=T)
+        loginfo(sprintf("end plotting geneOnUmap."))
 
 	    #### density
 	    ssc.plot.tsne(sce,plotDensity=T,reduced.name=sprintf("seurat.%s",rd),
@@ -364,22 +376,27 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 	    loginfo(sprintf("running Seurat pipeline ..."))
 
 	    seu <- run.HVG(seu,gene.exclude.df,n.top=n.top,measurement=measurement)
-	    if(is.character(do.adj)){
-            adj.cov <- c("S.Score","G2M.Score","DIG.Score1",do.adj)
-            ####adj.cov <- c("PROL.Score","DIG.Score1",do.adj)
-            do.adj <- T
-	    }else{
-            adj.cov <- c("S.Score","G2M.Score","DIG.Score1")
-	    }
+	    
+#        if(is.character(do.adj)){
+#            adj.cov <- c("S.Score","G2M.Score","DIG.Score1",do.adj)
+#            ####adj.cov <- c("PROL.Score","DIG.Score1",do.adj)
+#            do.adj <- T
+#	    }else{
+#            adj.cov <- c("S.Score","G2M.Score","DIG.Score1")
+#	    }
 
-	    if(do.adj){
+        adj.cov <- cor.var
+        if(adj.cov[1]=="NULL") { adj.cov <- NULL }
+	    if(!is.null(adj.cov)){
             loginfo(sprintf("CellCycleScoring ..."))
             seu <- CellCycleScoring(seu, s.features = cc.genes$s.genes,
                         g2m.features = cc.genes$g2m.genes, set.ident = FALSE)
             
             loginfo(sprintf("AddModuleScore ..."))
             ##glist.HSP <- fread("/lustre1/zeminz_pkuhpc/zhenglt/work/panC/data/geneSet/exclude/byHanjieLi.stress.glist")$geneSymbol
-            src.dir <- sprintf("%s/../",this.dir())
+            src.dir <- tryCatch({ sprintf("%s/../",this.dir()) },
+                error=function(e){ "/workspace/zhengliangtao/02.pipeline/scPip" })
+            #src.dir <- sprintf("%s/../",this.dir())
             glist.HSP <- fread(sprintf("%s/data/geneSet/byZhangLab.stress.glist.gz",src.dir))$geneSymbol
             #glist.HSP <- intersect(glist.HSP,rownames(seu))
             seu <- AddModuleScore(seu, features=list("DIG.Score"=glist.HSP), name="DIG.Score",
@@ -394,17 +411,18 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
             #seu <- AddModuleScore(seu, features=list("PROL.Score"=glist.prol), name="PROL.Score",
             #				      pool = NULL, nbin = 24, ctrl = 100)
 
+            ### if correct something, always correct for batchV and percent.mito
             if("percent.mito" %in% colnames(seu[[]])){
                 adj.cov <- c(adj.cov,"percent.mito")
             }
             if(nBatch>1){
                 adj.cov <- c("batchV",adj.cov)
             }
-            cat(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
-            print(head(seu[[]]))
-	    }else{
-            adj.cov <- NULL
 	    }
+        loginfo(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
+        print(head(seu[[]]))
+        loginfo(sprintf("do.scale: %s\n",do.scale))
+
 	    loginfo(sprintf("Scale ..."))
 	    if(use.sctransform && platform!="SmartSeq2"){
             cat(sprintf("SCTransform:\n"))
@@ -433,22 +451,29 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 	    #p <- ElbowPlot(object = seu,ndims=50)
 	    #ggsave(sprintf("%s.pca.03.pdf",out.prefix),width=5,height=4)
 
+        loginfo(sprintf("use.harmony: %s",use.harmony))
+        use.rd <- "pca"
+        if(use.harmony){ 
+            seu <- RunHarmony(seu, c("batchV"),verbose=F)
+            use.rd <- "harmony"
+        }
+
 	    ######### UMAP
 	    tic("RunUMAP...")
-	    seu <- RunUMAP(object = seu, reduction = "pca",dims = 1:opt.npc,verbose=F)
+	    seu <- RunUMAP(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
 	    toc()
 	    
 	    ######### tSNE 
 	    if("tsne" %in% plot.rd){
             tic("RunTSNE...")
-            seu <- RunTSNE(object = seu, reduction = "pca",dims = 1:opt.npc,verbose=F)
+            seu <- RunTSNE(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
             toc()
 	    }
 
 	    #######################################
 	    
 	    #### clustring
-	    seu <- FindNeighbors(object = seu, reduction = "pca", dims = 1:opt.npc)
+	    seu <- FindNeighbors(object = seu, reduction = use.rd, dims = 1:opt.npc)
 
 	    resolution.vec <- seq(0.1,2.4,0.1)
 	    seu <- FindClusters(object = seu,resolution = c(resolution.vec,res.addition),verbose=F)
@@ -481,7 +506,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 	    }
 
 	    ### patch
-	    colData(sce)[sce$majorCluster=="unknown","majorCluster"] <- ""
+	    colData(sce)[is.na(sce$majorCluster) | sce$majorCluster=="unknown","majorCluster"] <- ""
 	    ### 
 
 	    sce$ClusterID <- colData(sce)[[opt.res]]

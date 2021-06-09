@@ -66,31 +66,32 @@ ret.list <- run.inte.metaClust(exp.list.table, out.prefix, gene.exclude.file,
 			       ncores=12,npc=15,res.hi=50,TH.gene.occ=0.85)
 toc()
 
-#seu.merged <- ret.list[["seu.merged"]]
-#sce.merged <- ret.list[["sce.merged"]]
-#meta.tb <- ret.list[["meta.tb"]]
-
-tic("render_KnitReport ..")
-render_KnitReport(report.template.file,out.file=sprintf("%s.report.html",out.prefix),
-		  par.list=list("out.prefix"=sprintf("%s/plot.harmony.umap/%s",dirname(out.prefix),basename(out.prefix)),
-				"meta.tb.file"=sprintf("%s.meta.tb.rds",out.prefix),
-				"sce.file"=sprintf("%s.sce.merged.rds",out.prefix),
-				"plot.rd"="harmony.umap",
-				"plot.GeneOnUmap.list"=g.geneOnUmap.list))
-toc()
+seu.merged <- ret.list[["seu.merged"]]
+sce.merged <- ret.list[["sce.merged"]]
+meta.tb <- ret.list[["meta.tb"]]
 
 #seu.merged <- readRDS(file=sprintf("%s.seu.merged.rds",out.prefix))
 #sce.merged <- readRDS(file=sprintf("%s.sce.merged.rds",out.prefix))
 #meta.tb <- readRDS(file=sprintf("%s.meta.tb.rds",out.prefix))
 
+if(F){
+    tic("render_KnitReport ..")
+    render_KnitReport(report.template.file,out.file=sprintf("%s.report.html",out.prefix),
+              par.list=list("out.prefix"=sprintf("%s/plot.harmony.umap/%s",dirname(out.prefix),basename(out.prefix)),
+                    "meta.tb.file"=sprintf("%s.meta.tb.rds",out.prefix),
+                    "sce.file"=sprintf("%s.sce.merged.rds",out.prefix),
+                    "plot.rd"="harmony.umap",
+                    "plot.GeneOnUmap.list"=g.geneOnUmap.list))
+    toc()
 
+}
 
 #dataOnRDPlot(seu.merged,sce.merged,
 #			 sprintf("%s/%s/%s",dirname(out.prefix),"umap.algorithm1",basename(out.prefix)),
 #			 rd="umap",graph.name="RNA_pca_snn")
-#dataOnRDPlot(seu.merged,sce.merged,
-#			 sprintf("%s/%s/%s",dirname(out.prefix),"harmony.umap.algorithm1",basename(out.prefix)),
-#			 rd="harmony.umap")
+dataOnRDPlot(seu.merged,sce.merged,
+			 sprintf("%s/%s/%s",dirname(out.prefix),"harmony.umap.algorithm1",basename(out.prefix)),
+			 rd="harmony.umap")
 #dataOnRDPlot(seu.merged,sce.merged,
 #			 sprintf("%s/%s/%s",dirname(out.prefix),"tsne.Rtsne.algorithm1",basename(out.prefix)),
 #			 rd="tsne.Rtsne",graph.name="RNA_pca_snn")
