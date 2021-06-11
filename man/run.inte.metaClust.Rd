@@ -16,6 +16,7 @@ run.inte.metaClust(
   res.hi = 50,
   method.clustering = "louvain",
   cor.var = c("S.Score", "G2M.Score", "DIG.Score1"),
+  use.harmony = F,
   contamination.vec = NULL
 )
 }
@@ -41,6 +42,8 @@ run.inte.metaClust(
 \item{method.clustering}{character; clustering method for mini-clusters identification. (default: "louvain")}
 
 \item{cor.var}{character vector; subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")}
+
+\item{use.harmony}{logical; use harmony to correct for batch effect (batches are defined in column batchV). (default: FALSE)}
 
 \item{contamination.vec}{character vector; cells to be excluded. (default: NULL)}
 }

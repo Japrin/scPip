@@ -94,6 +94,7 @@ run.Leiden <- function(dat.pca,SNN.k=20,myseed=123456,...)
 #' @importFrom SingleCellExperiment rowData
 #' @importFrom SummarizedExperiment assay
 #' @importFrom Seurat CreateSeuratObject ScaleData RunPCA FindNeighbors FindClusters
+#' @importFrom harmony RunHarmony
 #' @importFrom sscVis loginfo ssc.build ssc.average.cell
 #' @importFrom plyr llply
 #' @param exp.list.table data.table; one line for a dataset
@@ -104,13 +105,14 @@ run.Leiden <- function(dat.pca,SNN.k=20,myseed=123456,...)
 #' @param method.clustering character; clustering method for mini-clusters identification. (default: "louvain")
 #' @param cor.var character vector; subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")
 #' @param contamination.vec character vector; cells to be excluded. (default: NULL)
+#' @param use.harmony logical; use harmony to correct for batch effect (batches are defined in column batchV). (default: FALSE)
 #' @return a list containing 3 components: dat.avg, meta.extra.tb and clust
 #' @details For each dataset, the function first identify mini-clusters, then calculate the average expressions of mini-clusters.
 mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.list,
 				   res.hi,method.clustering="louvain",
 				   #cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T,cor.ISG=F,
 				   cor.var=c("S.Score","G2M.Score","DIG.Score1"),
-				   contamination.vec=NULL)
+				   contamination.vec=NULL,use.harmony=F)
 {
     ret.list <- llply(seq_len(nrow(exp.list.table)),function(i){
 		    data.id <- exp.list.table$data.id[i]
@@ -197,7 +199,7 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 
 		    nBatch <- length(table(seu.x$batchV))
 		    ###adj.cov <- c()
-		    if(nBatch>1){
+		    if(nBatch>1 && !use.harmony){
 		        adj.cov <- c("batchV",adj.cov)
 		    }
 		    loginfo(sprintf("ScaleData on dataset %s, with adj.cov : %s ",
@@ -206,21 +208,29 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    seu.x <- ScaleData(seu.x,do.scale=T,features=gene.de.common,
 						       vars.to.regress = adj.cov,verbose=F)
 		    
+		    seu.x <- RunPCA(seu.x,features=rownames(seu.x),npcs= 15,verbose = FALSE)
+
+            loginfo(sprintf("use harmony to correct for batch effect in each dataset: %s",use.harmony))
+            rd.use <- "pca"
+            if(nBatch>1 && use.harmony){
+                seu.x <- RunHarmony(seu.x, c("batchV"),verbose=F)
+                rd.use <- "harmony"
+            }
+
 		    loginfo(sprintf("find mini-clusters on dataset %s ",data.id))
 		    ###### Seurat high resolution ####
-		    seu.x <- RunPCA(seu.x,features=rownames(seu.x),npcs= 15,verbose = FALSE)
 		    if(method.clustering=="leiden"){
-			clust.x <- run.Leiden(Embeddings(seu.x,"pca"),SNN.k=20,myseed=123456,resolution_parameter=res.hi)
-			seu.x@meta.data[[sprintf("RNA_snn_res.%d",res.hi)]] <- clust.x
+                clust.x <- run.Leiden(Embeddings(seu.x,rd.use),SNN.k=20,myseed=123456,resolution_parameter=res.hi)
+                seu.x@meta.data[[sprintf("RNA_snn_res.%d",res.hi)]] <- clust.x
 		    }else if(method.clustering=="louvain"){
-			seu.x <- FindNeighbors(seu.x, reduction = "pca",
-								   #k=if(ncol(seu.x)<500) 5 else 10,
-								   #k=if(ncol(seu.x)<500) 5 else 5,
-								   k=if(ncol(seu.x)<500) 10 else 10,
-								   #k=if(ncol(seu.x)<500) 10 else 20,
-								   dims = 1:15,nn.eps=0,force.recalc=T)
-			res.hi <- if(ncol(seu.x)<500){ 25 } else res.hi
-			seu.x <- FindClusters(seu.x,resolution =res.hi, algorithm=1,verbose=F)
+                seu.x <- FindNeighbors(seu.x, reduction = rd.use,
+                                       #k=if(ncol(seu.x)<500) 5 else 10,
+                                       #k=if(ncol(seu.x)<500) 5 else 5,
+                                       k=if(ncol(seu.x)<500) 10 else 10,
+                                       #k=if(ncol(seu.x)<500) 10 else 20,
+                                       dims = 1:15,nn.eps=0,force.recalc=T)
+                res.hi <- if(ncol(seu.x)<500){ 25 } else res.hi
+                seu.x <- FindClusters(seu.x,resolution =res.hi, algorithm=1,verbose=F)
 		    }
 
 		    ###### single cell #####
@@ -233,7 +243,6 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    dat.avg <- ssc.average.cell(sce.x,column="ClusterID",ret.type="data.mtx")
 		    colnames(dat.avg) <- sprintf("%s", (colnames(dat.avg)))
 		    meta.extra.tb$miniCluster <- sce.x$ClusterID
-		    #loginfo(sprintf("to return from mergeDataFromFileTable() of dataset %s ",data.id))
 		    ### todo: save the new PCA result
 		    return(list("dat.avg"=dat.avg[gene.de.common,],
 				"meta.extra.tb"=meta.extra.tb,
@@ -326,6 +335,7 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
 #' @param res.hi integer; high resolution used for mini-clusters identification. (default: 50)
 #' @param method.clustering character; clustering method for mini-clusters identification. (default: "louvain")
 #' @param cor.var character vector; subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")
+#' @param use.harmony logical; use harmony to correct for batch effect (batches are defined in column batchV). (default: FALSE)
 #' @param contamination.vec character vector; cells to be excluded. (default: NULL)
 #' @return a list containing 3 components: sce.merged, seu.merged and meta.tb
 #' @details For each dataset, the function first identify mini-clusters, then calculate the average expressions of mini-clusters. The gene by mini-cluster expression data will pass the pipeline: PCA, harmony, UMAP/Clustering.
@@ -338,6 +348,7 @@ run.inte.metaClust <- function(exp.list.table,
 			       res.hi=50,method.clustering="louvain",
 			       #cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T,cor.ISG=F,
 			       cor.var=c("S.Score","G2M.Score","DIG.Score1"),
+                   use.harmony=F,
 			       contamination.vec=NULL)
 {
     RhpcBLASctl::omp_set_num_threads(1)

@@ -12,7 +12,8 @@ mergeDataFromFileTable(
   res.hi,
   method.clustering = "louvain",
   cor.var = c("S.Score", "G2M.Score", "DIG.Score1"),
-  contamination.vec = NULL
+  contamination.vec = NULL,
+  use.harmony = F
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ mergeDataFromFileTable(
 \item{cor.var}{character vector; subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")}
 
 \item{contamination.vec}{character vector; cells to be excluded. (default: NULL)}
+
+\item{use.harmony}{logical; use harmony to correct for batch effect (batches are defined in column batchV). (default: FALSE)}
 }
 \value{
 a list containing 3 components: dat.avg, meta.extra.tb and clust
