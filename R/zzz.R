@@ -69,5 +69,17 @@ g.geneOnUmap.list <- list(
                   "HSP90AB1","HSPA1A","HSPA6")
                         )
 
-#.onLoad <- function(libname, pkgname) {
-#}
+
+.onLoad <- function(libname , pkgname) {
+    if(getRversion() >= "2.15.1"){
+        utils::globalVariables(c(".",".N",".SD","variable","value","Group","x",
+                                 "Dim1","Dim2",
+                                 "vst.variance","vst.variance.standardized",
+                                 "geneID","aid",
+                                 "dprime","vardprime","P.Value","adj.P.Val"))
+    }
+}
+
+
+
+

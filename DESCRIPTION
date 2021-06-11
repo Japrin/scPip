@@ -12,4 +12,4 @@ RoxygenNote: 7.1.1
 Depends: R (>= 3.5.0), SingleCellExperiment, Seurat, SummarizedExperiment
 Imports: data.table, cowplot, ggplot2, ggpubr, R.utils, harmony, leiden,
     plyr, scran, sscClust, sscVis, tibble, S4Vectors, RhpcBLASctl,
-    doParallel, rmarkdown
+    doParallel, rmarkdown, dplyr, magrittr, tictoc

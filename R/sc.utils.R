@@ -9,9 +9,11 @@
 #suppressPackageStartupMessages(library("harmony"))
 
 #' Wraper for highly variable genes finding
-#' @importFrom Seurat FindVariableFeatures
+#' @importFrom Seurat FindVariableFeatures `VariableFeatures<-`
 #' @importFrom tibble rownames_to_column
 #' @importFrom utils head str
+#' @importFrom magrittr `%>%`
+#' @importFrom dplyr arrange
 #' @param seu object of \code{Seurat}
 #' @param gene.exclude.df data.frame; gene blak list. Required column: seu.id.
 #' @param n.top integer; number of top genes. (default: 1500)
@@ -25,7 +27,7 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 	#### TPM
 	hvg.gene.info <- seu@assays$RNA@meta.features %>% 
 		tibble::rownames_to_column(var="geneSymbol") %>%
-		arrange(desc(vst.variance))
+		arrange(-vst.variance)
     }else{
 	#### counts, cpm
 	hvg.gene.info <- seu@assays$RNA@meta.features %>% 
@@ -38,9 +40,9 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 					  "MALAT1-ENSG00000279576","MALAT1-ENSG00000278217"))
     hvg.gene.info.flt <- hvg.gene.info[f.hvg,]
     if(measurement=="TPM"){
-	hvg.gene.info.flt$rank.perc <- rank(-hvg.gene.info.flt$vst.variance)/nrow(hvg.gene.info.flt)
+        hvg.gene.info.flt$rank.perc <- rank(-hvg.gene.info.flt$vst.variance)/nrow(hvg.gene.info.flt)
     }else {
-	hvg.gene.info.flt$rank.perc <- rank(-hvg.gene.info.flt$vst.variance.standardized)/nrow(hvg.gene.info.flt)
+        hvg.gene.info.flt$rank.perc <- rank(-hvg.gene.info.flt$vst.variance.standardized)/nrow(hvg.gene.info.flt)
     }
     VariableFeatures(seu) <- head(hvg.gene.info.flt,n=n.top)$geneSymbol
     print(str(seu@assays$RNA@var.features))
@@ -50,18 +52,20 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 }
 
 #' Wraper for running Seurat3 pipeline
-#' @importFrom Seurat CreateSeuratObject SetAssayData GetAssayData CellCycleScoring AddModuleScore ScaleData SCTransform RunPCA ProjectDim RunUMAP RunTSNE FindNeighbors FindClusters Embeddings
-#' @importFrom SingleCellExperiment rowData colData reducedDim
-#' @importFrom SummarizedExperiment assayNames assay
+#' @importFrom Seurat CreateSeuratObject SetAssayData GetAssayData CellCycleScoring AddModuleScore ScaleData SCTransform RunPCA ProjectDim RunUMAP RunTSNE FindNeighbors FindClusters Embeddings DimPlot NoLegend
+#' @importFrom SingleCellExperiment `reducedDim<-`
+#' @importFrom SummarizedExperiment assayNames assay `assay<-` rowData `rowData<-` colData `colData<-`
 #' @importFrom harmony RunHarmony
 #' @importFrom data.table data.table fread
+#' @importFrom S4Vectors DataFrame
 #' @importFrom sscVis ssc.build loginfo ssc.plot.tsne ssc.plot.violin
 #' @importFrom sscClust ssc.DEGene.limma
 #' @importFrom ggplot2 ggsave
 #' @importFrom cowplot plot_grid save_plot
 #' @importFrom RhpcBLASctl omp_set_num_threads
 #' @importFrom doParallel registerDoParallel
-#' @importFrom utils head str
+#' @importFrom utils head str data
+#' @importFrom tictoc tic toc
 #' @param seu object of \code{Seurat}
 #' @param sce object of \code{SingleCellExperiment}
 #' @param out.prefix character; output prefix
@@ -262,44 +266,44 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
         plot.resolution.list <- list()
         for(t.res in resolution.vec){
-        if(use.sctransform && platform!="SmartSeq2"){
-            cate.res <- sprintf("SCT_snn_res.%s",t.res)
-        }else{
-            cate.res <- sprintf("RNA_snn_res.%s",t.res)
-        }
-        plot.resolution.list[[cate.res]] <- ssc.plot.tsne(sce,columns = cate.res,
-                    reduced.name = sprintf("seurat.%s",rd),
-                    colSet=list(),size=0.1,label=3,
-                    par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
-                    base_aspect_ratio = 1.2)
+            if(use.sctransform && platform!="SmartSeq2"){
+                cate.res <- sprintf("SCT_snn_res.%s",t.res)
+            }else{
+                cate.res <- sprintf("RNA_snn_res.%s",t.res)
+            }
+            plot.resolution.list[[cate.res]] <- ssc.plot.tsne(sce,columns = cate.res,
+                        reduced.name = sprintf("seurat.%s",rd),
+                        colSet=list(),size=0.1,label=3,
+                        par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
+                        base_aspect_ratio = 1.2)
         }
 
-        plot.resolution.list.debug <<- plot.resolution.list
-        out.prefix.debug <<- out.prefix
+        #plot.resolution.list.debug <<- plot.resolution.list
+        #out.prefix.debug <<- out.prefix
         for(i in seq_len(length(plot.resolution.list)/4))
         {
-        pp <- plot_grid(plotlist=plot.resolution.list[((i-1)*4+1):(i*4)],
-                ncol = 2,align = "hv")
-        save_plot(sprintf("%s.%s.res.sceStyle.%d.png",out.prefix,rd,i),pp,
-              ncol = 2, base_aspect_ratio=0.9,base_height=5.5)
+            pp <- plot_grid(plotlist=plot.resolution.list[((i-1)*4+1):(i*4)],
+                    ncol = 2,align = "hv")
+            save_plot(sprintf("%s.%s.res.sceStyle.%d.png",out.prefix,rd,i),pp,
+                  ncol = 2, base_aspect_ratio=0.9,base_height=5.5)
         }
 
         ## gene on umap
         loginfo(sprintf("bein plotting geneOnUmap ..."))
         l_ply(seq_along(g.geneOnUmap.list),function(i){
-        gene.tmp <- intersect(g.geneOnUmap.list[[i]],rowData(sce)$display.name)
-        loginfo(sprintf("(begin) geneSet %s",names(g.geneOnUmap.list)[i]))
-        if(length(gene.tmp)>0){
-            p <- ssc.plot.tsne(sce,assay.name=assay.name,adjB=if(nBatch>1) "batchV" else NULL,
-                   gene=gene.tmp,
-                   par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
-                  reduced.name=sprintf("seurat.%s",rd))
-            ggsave(sprintf("%s.seurat.%s.marker.%s.png",
-               out.prefix,rd,names(g.geneOnUmap.list)[i]),
-               width=10,
-               height=if(length(gene.tmp)>9) 11 else if(length(gene.tmp)>6) 8 else if(length(gene.tmp)>3) 5.4 else 2.7)
-        }
-        loginfo(sprintf("(end) geneSet %s",names(g.geneOnUmap.list)[i]))
+            gene.tmp <- intersect(g.geneOnUmap.list[[i]],rowData(sce)$display.name)
+            loginfo(sprintf("(begin) geneSet %s",names(g.geneOnUmap.list)[i]))
+            if(length(gene.tmp)>0){
+                p <- ssc.plot.tsne(sce,assay.name=assay.name,adjB=if(nBatch>1) "batchV" else NULL,
+                       gene=gene.tmp,
+                       par.geneOnTSNE=list(scales="free",pt.order="random",pt.alpha=0.8),
+                      reduced.name=sprintf("seurat.%s",rd))
+                ggsave(sprintf("%s.seurat.%s.marker.%s.png",
+                   out.prefix,rd,names(g.geneOnUmap.list)[i]),
+                   width=10,
+                   height=if(length(gene.tmp)>9) 11 else if(length(gene.tmp)>6) 8 else if(length(gene.tmp)>3) 5.4 else 2.7)
+            }
+            loginfo(sprintf("(end) geneSet %s",names(g.geneOnUmap.list)[i]))
         },.parallel=T)
         loginfo(sprintf("end plotting geneOnUmap."))
 
@@ -343,142 +347,144 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
     if(file.exists(sprintf("%s.sce.rds",out.prefix)))
     {
-	loginfo(sprintf("loading pre-calculated result ..."))
-	sce <- readRDS(sprintf("%s.sce.rds",out.prefix))
-	seu <- readRDS(sprintf("%s.seu.rds",out.prefix))
-	if(old.par$opt.res==opt.res){
-		return(list("seu"=seu,"sce"=sce))
-	}
+        loginfo(sprintf("loading pre-calculated result ..."))
+        sce <- readRDS(sprintf("%s.sce.rds",out.prefix))
+        seu <- readRDS(sprintf("%s.seu.rds",out.prefix))
+        if(old.par$opt.res==opt.res){
+            return(list("seu"=seu,"sce"=sce))
+        }
     }else
     {
-	loginfo(sprintf("running Seurat pipeline ..."))
+        loginfo(sprintf("running Seurat pipeline ..."))
 
-	seu <- run.HVG(seu,gene.exclude.df,n.top=n.top,measurement=measurement)
+        seu <- run.HVG(seu,gene.exclude.df,n.top=n.top,measurement=measurement)
 
-    adj.cov <- cor.var
-    if(adj.cov[1]=="NULL") { adj.cov <- NULL }
-	if(!is.null(adj.cov)){
-	loginfo(sprintf("CellCycleScoring ..."))
-	seu <- CellCycleScoring(seu, s.features = cc.genes$s.genes,
-		    g2m.features = cc.genes$g2m.genes, set.ident = FALSE)
-	
-	loginfo(sprintf("AddModuleScore ..."))
-    dat.ext.dir <- system.file("extdata",package="scPip")
-	glist.HSP <- fread(sprintf("%s/byZhangLab.stress.glist.gz",dat.ext.dir))$geneSymbol
-	#glist.HSP <- intersect(glist.HSP,rownames(seu))
-	seu <- AddModuleScore(seu, features=list("DIG.Score"=glist.HSP), name="DIG.Score",
-			      pool = NULL, nbin = 24, ctrl = 100)
+        adj.cov <- cor.var
+        if(adj.cov[1]=="NULL") { adj.cov <- NULL }
+        if(!is.null(adj.cov)){
+        loginfo(sprintf("CellCycleScoring ..."))
+        data("cc.genes",package="Seurat")
+        seu <- CellCycleScoring(seu, s.features = cc.genes$s.genes,
+                                g2m.features = cc.genes$g2m.genes,
+                                set.ident = FALSE)
+        
+        loginfo(sprintf("AddModuleScore ..."))
+        dat.ext.dir <- system.file("extdata",package="scPip")
+        glist.HSP <- fread(sprintf("%s/byZhangLab.stress.glist.gz",dat.ext.dir))$geneSymbol
+        #glist.HSP <- intersect(glist.HSP,rownames(seu))
+        seu <- AddModuleScore(seu, features=list("DIG.Score"=glist.HSP), name="DIG.Score",
+                      pool = NULL, nbin = 24, ctrl = 100)
 
-	glist.ISG <- fread(sprintf("%s/ISG.MSigDB.BROWNE_INTERFERON_RESPONSIVE_GENES.detected.glist.gz",dat.ext.dir))$geneSymbol
-	seu <- AddModuleScore(seu, features=list("ISG.Score"=glist.ISG), name="ISG.Score",
-			      pool = NULL, nbin = 24, ctrl = 100)
+        glist.ISG <- fread(sprintf("%s/ISG.MSigDB.BROWNE_INTERFERON_RESPONSIVE_GENES.detected.glist.gz",dat.ext.dir))$geneSymbol
+        seu <- AddModuleScore(seu, features=list("ISG.Score"=glist.ISG), name="ISG.Score",
+                      pool = NULL, nbin = 24, ctrl = 100)
 
-	### if correct something, always correct for batchV and percent.mito
-	if("percent.mito" %in% colnames(seu[[]])){
-	    adj.cov <- c(adj.cov,"percent.mito")
-	}
-	if(nBatch>1){
-	    adj.cov <- c("batchV",adj.cov)
-	}
-	}
-    loginfo(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
-    print(head(seu[[]]))
-    loginfo(sprintf("do.scale: %s\n",do.scale))
+        ### if correct something, always correct for batchV and percent.mito
+        if("percent.mito" %in% colnames(seu[[]])){
+            adj.cov <- c(adj.cov,"percent.mito")
+        }
+        if(nBatch>1){
+            adj.cov <- c("batchV",adj.cov)
+        }
+        }
+        loginfo(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
+        print(head(seu[[]]))
+        loginfo(sprintf("do.scale: %s\n",do.scale))
 
-	loginfo(sprintf("Scale ..."))
-	if(use.sctransform && platform!="SmartSeq2"){
-	cat(sprintf("SCTransform:\n"))
-	seu <- SCTransform(seu, variable.features.n=n.top, do.scale=do.scale, vars.to.regress = adj.cov)
-	}else{
-	cat(sprintf("ScaleData:\n"))
-	seu <- ScaleData(object = seu,do.scale=do.scale,vars.to.regress = adj.cov)
-	}
+        loginfo(sprintf("Scale ..."))
+        if(use.sctransform && platform!="SmartSeq2"){
+        cat(sprintf("SCTransform:\n"))
+        seu <- SCTransform(seu, variable.features.n=n.top, do.scale=do.scale, vars.to.regress = adj.cov)
+        }else{
+        cat(sprintf("ScaleData:\n"))
+        seu <- ScaleData(object = seu,do.scale=do.scale,vars.to.regress = adj.cov)
+        }
 
-	if(run.stage==0){
-	return(list("seu"=seu,"sce"=sce))
-	}
+        if(run.stage==0){
+        return(list("seu"=seu,"sce"=sce))
+        }
 
-	#### PCA
-	seu <- RunPCA(object = seu)
-	#print(x = seu[['pca']], dims = 1:5, nfeatures = 5, projected = FALSE)
-	#p <- VizDimLoadings(seu)
-	#ggsave(sprintf("%s.pca.01.pdf",out.prefix),width=7,height=14)
+        #### PCA
+        seu <- RunPCA(object = seu)
+        #print(x = seu[['pca']], dims = 1:5, nfeatures = 5, projected = FALSE)
+        #p <- VizDimLoadings(seu)
+        #ggsave(sprintf("%s.pca.01.pdf",out.prefix),width=7,height=14)
 
-	seu <- ProjectDim(object = seu)
+        seu <- ProjectDim(object = seu)
 
-	#pdf(sprintf("%s.pca.02.pdf",out.prefix),width=14,height=18)
-	#DimHeatmap(object = seu, dims = 1:15, cells = 500, balanced = TRUE,fast = TRUE)
-	#dev.off()
+        #pdf(sprintf("%s.pca.02.pdf",out.prefix),width=14,height=18)
+        #DimHeatmap(object = seu, dims = 1:15, cells = 500, balanced = TRUE,fast = TRUE)
+        #dev.off()
 
-	#p <- ElbowPlot(object = seu,ndims=50)
-	#ggsave(sprintf("%s.pca.03.pdf",out.prefix),width=5,height=4)
+        #p <- ElbowPlot(object = seu,ndims=50)
+        #ggsave(sprintf("%s.pca.03.pdf",out.prefix),width=5,height=4)
 
-    loginfo(sprintf("use.harmony: %s",use.harmony))
-    use.rd <- "pca"
-    if(use.harmony){
-        seu <- RunHarmony(seu, c("batchV"),verbose=F)
-        use.rd <- "harmony"
-    }
+        loginfo(sprintf("use.harmony: %s",use.harmony))
+        use.rd <- "pca"
+        if(use.harmony){
+            seu <- RunHarmony(seu, c("batchV"),verbose=F)
+            use.rd <- "harmony"
+        }
 
-	######### UMAP
-	tic("RunUMAP...")
-	seu <- RunUMAP(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
-	toc()
-	
-	######### tSNE 
-	if("tsne" %in% plot.rd){
-	tic("RunTSNE...")
-	seu <- RunTSNE(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
-	toc()
-	}
+        ######### UMAP
+        tic("RunUMAP...")
+        seu <- RunUMAP(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
+        toc()
+        
+        ######### tSNE 
+        if("tsne" %in% plot.rd){
+        tic("RunTSNE...")
+        seu <- RunTSNE(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
+        toc()
+        }
 
-	#######################################
-	
-	#### clustring
-	seu <- FindNeighbors(object = seu, reduction = use.rd, dims = 1:opt.npc)
+        #######################################
+        
+        #### clustring
+        seu <- FindNeighbors(object = seu, reduction = use.rd, dims = 1:opt.npc)
 
-	resolution.vec <- seq(0.1,2.4,0.1)
-	seu <- FindClusters(object = seu,resolution = c(resolution.vec,res.addition),verbose=F)
+        resolution.vec <- seq(0.1,2.4,0.1)
+        seu <- FindClusters(object = seu,resolution = c(resolution.vec,res.addition),verbose=F)
 
-	for(t.res in resolution.vec){
-	if(use.sctransform && platform!="SmartSeq2"){
-	    print(table(seu[[sprintf("SCT_snn_res.%s",t.res)]]))
-	    aa.res <- sprintf("SCT_snn_res.%s",t.res)
-	}else{
-	    print(table(seu[[sprintf("RNA_snn_res.%s",t.res)]]))
-	    aa.res <- sprintf("RNA_snn_res.%s",t.res)
-	}
-	#sce[[aa.res]] <- seu.merged@meta.data[,aa.res]
-	}
+        for(t.res in resolution.vec){
+        if(use.sctransform && platform!="SmartSeq2"){
+            print(table(seu[[sprintf("SCT_snn_res.%s",t.res)]]))
+            aa.res <- sprintf("SCT_snn_res.%s",t.res)
+        }else{
+            print(table(seu[[sprintf("RNA_snn_res.%s",t.res)]]))
+            aa.res <- sprintf("RNA_snn_res.%s",t.res)
+        }
+        #sce[[aa.res]] <- seu.merged@meta.data[,aa.res]
+        }
 
-	#### for sscClust
-	reducedDim(sce,"seurat.pca") <- Embeddings(seu, reduction = "pca")
-	reducedDim(sce,"seurat.umap") <- Embeddings(seu, reduction = "umap")
-	if("tsne" %in% names(seu@reductions)){
-	reducedDim(sce,"seurat.tsne") <- Embeddings(seu, reduction = "tsne")
-	}
+        #### for sscClust
+        reducedDim(sce,"seurat.pca") <- Embeddings(seu, reduction = "pca")
+        reducedDim(sce,"seurat.umap") <- Embeddings(seu, reduction = "umap")
+        if("tsne" %in% names(seu@reductions)){
+        reducedDim(sce,"seurat.tsne") <- Embeddings(seu, reduction = "tsne")
+        }
 
-	if(use.sctransform && platform!="SmartSeq2"){
-	idx.colRes <- grep("^SCT_snn_res",colnames(seu[[]]),value=T)
-	}else{
-	idx.colRes <- grep("^RNA_snn_res",colnames(seu[[]]),value=T)
-	}
-	for(idx in idx.colRes){
-	colData(sce)[[idx]] <- sprintf("C%02d",as.integer(as.character(seu[[]][,idx])))
-	}
+        if(use.sctransform && platform!="SmartSeq2"){
+        idx.colRes <- grep("^SCT_snn_res",colnames(seu[[]]),value=T)
+        }else{
+        idx.colRes <- grep("^RNA_snn_res",colnames(seu[[]]),value=T)
+        }
+        for(idx in idx.colRes){
+        colData(sce)[[idx]] <- sprintf("C%02d",as.integer(as.character(seu[[]][,idx])))
+        }
 
-	### patch
-	colData(sce)[is.na(sce$majorCluster) | sce$majorCluster=="unknown","majorCluster"] <- ""
-	### 
+        ### patch
+        colData(sce)[is.na(sce$majorCluster) | sce$majorCluster=="unknown","majorCluster"] <- ""
+        ### 
 
-	sce$ClusterID <- colData(sce)[[opt.res]]
-	print("all(colnames(sce)==colnames(seu))?")
-	print(all(colnames(sce)==colnames(seu)))
-	seu$ClusterID <- sce$ClusterID
+        sce$ClusterID <- colData(sce)[[opt.res]]
+        print("all(colnames(sce)==colnames(seu))?")
+        print(all(colnames(sce)==colnames(seu)))
+        seu$ClusterID <- sce$ClusterID
 
-	for(i.rd in plot.rd){
-	plot.all(rd=i.rd)
-	}
+        for(i.rd in plot.rd){
+        plot.all(rd=i.rd)
+        }
     }
 
     sce$ClusterID <- colData(sce)[[opt.res]]
@@ -515,15 +521,15 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     
     nCls <- length(table(sce$ClusterID))
     l_ply(seq_along(g.geneOnUmap.list),function(i){
-	gene.tmp <- intersect(g.geneOnUmap.list[[i]],rowData(sce)$display.name)
-	if(length(gene.tmp)>0){
-	p <- ssc.plot.violin(sce,assay.name=assay.name,
-		     adjB=if(nBatch>1) "batchV" else NULL,
-		     clamp = c(-4, 8), gene=gene.tmp, group.var="ClusterID")
-	ggsave(sprintf("%s.seurat.violin.marker.%s.png",
-		   out.prefix,names(g.geneOnUmap.list)[i]),
-	       width=if(nCls<=12) 6 else 8,height=8)
-	}
+        gene.tmp <- intersect(g.geneOnUmap.list[[i]],rowData(sce)$display.name)
+        if(length(gene.tmp)>0){
+            p <- ssc.plot.violin(sce,assay.name=assay.name,
+                     adjB=if(nBatch>1) "batchV" else NULL,
+                     clamp = c(-4, 8), gene=gene.tmp, group.var="ClusterID")
+            ggsave(sprintf("%s.seurat.violin.marker.%s.png",
+                   out.prefix,names(g.geneOnUmap.list)[i]),
+                   width=if(nCls<=12) 6 else 8,height=8)
+        }
     },.parallel=T)
 
 ### DE Genes
@@ -540,21 +546,21 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 ####	toc()
 
     if(do.deg){
-	dir.create(sprintf("%s/limma",dirname(out.prefix)),F,T)
+        dir.create(sprintf("%s/limma",dirname(out.prefix)),F,T)
 
-	tic("limma")
-	de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,ncell.downsample=ncell.deg,
-				   group.var="ClusterID",batch=if(nBatch>1) "batchV" else NULL,
-				   out.prefix=sprintf("%s/limma/%s",
-						      dirname(out.prefix),basename(out.prefix)),
-				   n.cores=ncores,verbose=3, group.mode="multiAsTwo",
-				   T.logFC=if(platform=="SmartSeq2") 1 else 0.25)
-	toc()
+        tic("limma")
+        de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,ncell.downsample=ncell.deg,
+                       group.var="ClusterID",batch=if(nBatch>1) "batchV" else NULL,
+                       out.prefix=sprintf("%s/limma/%s",
+                                  dirname(out.prefix),basename(out.prefix)),
+                       n.cores=ncores,verbose=3, group.mode="multiAsTwo",
+                       T.logFC=if(platform=="SmartSeq2") 1 else 0.25)
+        toc()
 
-	saveRDS(de.out,file=sprintf("%s.de.out.limma.rda",
-				    sprintf("%s/limma/%s",
-					    dirname(out.prefix),
-					    basename(out.prefix))))
+        saveRDS(de.out,file=sprintf("%s.de.out.limma.rda",
+                        sprintf("%s/limma/%s",
+                            dirname(out.prefix),
+                            basename(out.prefix))))
     }
 
     return(list("seu"=seu,"sce"=sce))
@@ -631,7 +637,7 @@ cal.signatureScore.gdT.Fred <- function(obj,GSx=c("CD3D","CD3E","TRDC","TRGC1","
 #' @importFrom SingleCellExperiment rowData
 #' @importFrom SummarizedExperiment assay
 #' @importFrom data.table setDT
-#' @importFrom ggplot2 ggplot geom_density theme_bw geom_vline facet_wrap ggsave
+#' @importFrom ggplot2 ggplot geom_density theme_bw geom_vline facet_wrap ggsave aes_string
 #' @param obj object of \code{SingleCellExperiment}
 #' @param out.prefix character; output prefix. (default: NULL)
 #' @param assay.name character vector; which assay to use. (default: "norm_exprs").
@@ -661,7 +667,7 @@ inSilico.TGammaDelta <- function(obj,out.prefix=NULL,assay.name="norm_exprs",vis
 
     if(!is.null(out.prefix)){
 	dir.create(dirname(out.prefix),F,T)
-	p <- ggplot(dat.plot.melt, aes(norm_exprs, fill = gene, colour = gene)) +
+	p <- ggplot(dat.plot.melt, aes_string(x="norm_exprs", fill = "gene", colour = "gene")) +
 	    geom_density(alpha = 0.1) +
 		    theme_bw() +
 	    geom_vline(xintercept = vis.v,linetype=2) +
@@ -741,7 +747,7 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
     colnames(dat.plot.melt) <- c("cell","gene","norm_exprs")
 
     if(!file.exists(dirname(out.prefix))){
-	dir.create(dirname(out.prefix),F,T)
+        dir.create(dirname(out.prefix),F,T)
     }
     #p <- ggplot(dat.plot.melt, aes(norm_exprs, fill = gene, colour = gene)) +
     #    geom_density(alpha = 0.1) +
@@ -768,16 +774,16 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
     #####
     has.gd.gene <- F
     if(all(c("TRDC","TRGC1","TRGC2") %in% colnames(dat.plot))){
-	x.gdType <- rep("unknown",ncol(sce))
-	x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC  ] <- "undetermined"
-	x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
-		 (dat.plot[,"TRGC1"] > Th.GC1 & dat.plot[,"TRGC2"] < Th.GC2 )  ] <- "delta2"
-	x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
-		 (dat.plot[,"TRGC1"] < Th.GC1 & dat.plot[,"TRGC2"] > Th.GC2 )  ] <- "delta1"
-	sce$gdType <- x.gdType
-	has.gd.gene <- T
+        x.gdType <- rep("unknown",ncol(sce))
+        x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC  ] <- "undetermined"
+        x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
+             (dat.plot[,"TRGC1"] > Th.GC1 & dat.plot[,"TRGC2"] < Th.GC2 )  ] <- "delta2"
+        x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
+             (dat.plot[,"TRGC1"] < Th.GC1 & dat.plot[,"TRGC2"] > Th.GC2 )  ] <- "delta1"
+        sce$gdType <- x.gdType
+        has.gd.gene <- T
     }else{
-	warning(sprintf("There are no gd genes found in the data\n"))
+        warning(sprintf("There are no gd genes found in the data\n"))
     }
     #####
 
@@ -796,11 +802,10 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
 }
 
 #' calculate the signature score of one potential contaminated cell types (simple average-threshold method)
-#' @importFrom SingleCellExperiment colData
-#' @importFrom SummarizedExperiment assay
+#' @importFrom SummarizedExperiment assay `colData<-`
 #' @importFrom Seurat GetAssayData
 #' @importFrom data.table data.table melt
-#' @importFrom ggplot2 ggplot geom_density geom_vline facet_wrap ggsave
+#' @importFrom ggplot2 ggplot geom_density geom_vline facet_wrap ggsave aes_string
 #' @param obj object of \code{SingleCellExperiment} or \code{Seurat}
 #' @param out.prefix character; output prefix. (default: NULL)
 #' @param assay.name character vector; which assay to use. (default: "norm_exprs").
@@ -819,28 +824,28 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
     #require("data.table")
     ##### plasma contamination
     if(class(obj)[1]=="SingleCellExperiment"){
-	exp.data <- assay(obj,assay.name)[g.test,,drop=F]
-	B.score.tb <- data.table(cell=colnames(obj),B.score= colMeans(exp.data))
-	B.score.tb <- cbind(B.score.tb,as.matrix(t(exp.data)))
-	colData(obj)[[sprintf("%s.score",g.name)]] <- B.score.tb$B.score
-	colData(obj)[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
+        exp.data <- assay(obj,assay.name)[g.test,,drop=F]
+        B.score.tb <- data.table(cell=colnames(obj),B.score= colMeans(exp.data))
+        B.score.tb <- cbind(B.score.tb,as.matrix(t(exp.data)))
+        colData(obj)[[sprintf("%s.score",g.name)]] <- B.score.tb$B.score
+        colData(obj)[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else if(class(obj)[1]=="Seurat"){
-	exp.data <- GetAssayData(seu,"data")[g.test,,drop=F]
-	B.score.tb <- data.table(cell=colnames(obj),B.score= colMeans(exp.data))
-	B.score.tb <- cbind(B.score.tb,as.matrix(t(exp.data)))
-	obj[[sprintf("%s.score",g.name)]] <- B.score.tb$B.score
-	obj[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
+        exp.data <- GetAssayData(obj,"data")[g.test,,drop=F]
+        B.score.tb <- data.table(cell=colnames(obj),B.score= colMeans(exp.data))
+        B.score.tb <- cbind(B.score.tb,as.matrix(t(exp.data)))
+        obj[[sprintf("%s.score",g.name)]] <- B.score.tb$B.score
+        obj[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else{
-	return(obj)
+        return(obj)
     }
 
     B.score.tb.melt <- melt(B.score.tb,id="cell")
     colnames(B.score.tb.melt) <- c("cell","gene","norm_exprs")
 
     if(!file.exists(dirname(out.prefix))){
-	dir.create(dirname(out.prefix),F,T)
+        dir.create(dirname(out.prefix),F,T)
     }
-    p <- ggplot(B.score.tb.melt, aes(norm_exprs, fill = gene, colour = gene)) +
+    p <- ggplot(B.score.tb.melt, aes_string(x="norm_exprs", fill = "gene", colour = "gene")) +
 		    geom_density(alpha = 0.1) +
 		    geom_vline(xintercept = vis.v,linetype=2) +
 		    facet_wrap(~gene,ncol=2,scales="free_y")
