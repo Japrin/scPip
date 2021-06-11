@@ -66,13 +66,11 @@ library("ggpubr")
 library("cowplot")
 library("limma")
 library("reticulate")
-library("this.path")
+library("scPip")
 options(stringsAsFactors = FALSE)
 
-g.src.dir <- sprintf("%s/../",this.dir())
-source(sprintf("%s/lib/sc.utils.R",g.src.dir))
-gene.exclude.file <- sprintf("%s/data/geneSet/exclude.gene.misc.misc.v3.RData",g.src.dir)
-#print(gene.exclude.file)
+dat.ext.dir <- system.file("extdata",package="scPip")
+gene.exclude.file <- sprintf("%s/exclude.gene.misc.misc.v3.RData",dat.ext.dir)
 
 ######################
 

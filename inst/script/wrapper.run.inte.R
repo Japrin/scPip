@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 suppressPackageStartupMessages(library("argparse"))
-suppressPackageStartupMessages(library("this.path"))
+suppressPackageStartupMessages(library("scPip"))
 
 parser <- ArgumentParser()
 parser$add_argument("-i", "--inFile", type="character", required=TRUE, help="input files list")
@@ -33,15 +33,12 @@ dir.create(dirname(out.prefix),F,T)
 
 ###opt.cor.var <- c("S.Score","G2M.Score", "DIG.Score1")
 
-g.src.dir <- sprintf("%s/../",this.dir())
-source(sprintf("%s/lib/inte.comb.miniClust.lib.R",g.src.dir))
-report.template.file <- sprintf("%s/rna/report.template.sc.rmd",g.src.dir)
-#source("/lustre1/zeminz_pkuhpc/zhenglt/02.pipeline/scPip/lib/inte.comb.miniClust.lib.R")
-#report.template.file <- "/lustre1/zeminz_pkuhpc/zhenglt/02.pipeline/scPip/rna/report.template.sc.rmd"
+dat.ext.dir <- system.file("extdata",package="scPip")
+script.dir <- system.file("script",package="scPip")
+report.template.file <- sprintf("%s/rna/report.template.sc.rmd",script.dir)
 
 ncores <- 12
-gene.exclude.file <- sprintf("%s/data/geneSet/exclude.gene.misc.misc.v3.RData",g.src.dir)
-#gene.exclude.file <- "/lustre1/zeminz_pkuhpc/zhenglt/02.pipeline/scPip/data/geneSet/exclude.gene.misc.misc.v3.RData"
+gene.exclude.file <- sprintf("%s/exclude.gene.misc.misc.v3.RData",dat.ext.dir)
 
 options(stringsAsFactors = FALSE)
 
@@ -89,7 +86,7 @@ if(F){
 #dataOnRDPlot(seu.merged,sce.merged,
 #			 sprintf("%s/%s/%s",dirname(out.prefix),"umap.algorithm1",basename(out.prefix)),
 #			 rd="umap",graph.name="RNA_pca_snn")
-dataOnRDPlot(seu.merged,sce.merged,
+scPip:::dataOnRDPlot(seu.merged,sce.merged,
 			 sprintf("%s/%s/%s",dirname(out.prefix),"harmony.umap.algorithm1",basename(out.prefix)),
 			 rd="harmony.umap")
 #dataOnRDPlot(seu.merged,sce.merged,

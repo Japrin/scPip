@@ -1,0 +1,15 @@
+Package: scPip
+Type: Package
+Title: pipeline for scRNA-seq data analysis
+Version: 0.1.0
+Author: Liangtao Zheng
+Maintainer: Liangtao Zheng <tao2013@gmail.com>
+Description: A pipeline for scRNA-seq data analysis.
+License: GPL-3 + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Depends: R (>= 3.5.0), SingleCellExperiment, Seurat, SummarizedExperiment
+Imports: data.table, cowplot, ggplot2, ggpubr, R.utils, harmony, leiden,
+    plyr, scran, sscClust, sscVis, tibble, S4Vectors, RhpcBLASctl,
+    doParallel, rmarkdown
