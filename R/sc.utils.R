@@ -363,9 +363,10 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
         if(adj.cov[1]=="NULL") { adj.cov <- NULL }
         if(!is.null(adj.cov)){
         loginfo(sprintf("CellCycleScoring ..."))
-        data("cc.genes",package="Seurat")
-        seu <- CellCycleScoring(seu, s.features = cc.genes$s.genes,
-                                g2m.features = cc.genes$g2m.genes,
+        a.env <- new.env()
+        data("cc.genes",package="Seurat",envir=a.env)
+        seu <- CellCycleScoring(seu, s.features = a.env[["cc.genes"]][["s.genes"]],
+                                g2m.features = a.env[["cc.genes"]][["g2m.genes"]],
                                 set.ident = FALSE)
         
         loginfo(sprintf("AddModuleScore ..."))

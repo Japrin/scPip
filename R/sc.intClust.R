@@ -21,7 +21,7 @@
 ####source("/lustre1/zeminz_pkuhpc/zhenglt/work/panC/ana/PanC.T/lib/plot.func.R")
 
 #' highly variable genes finding (method using percetile rank values from F test)
-#' @importFrom data.table data.table as.data.table
+#' @importFrom data.table data.table as.data.table `:=`
 #' @importFrom plyr ldply
 #' @importFrom stats median
 #' @param gene.rank.tb data.table object
@@ -47,9 +47,9 @@ HVG.From.GeneRankTb <- function(gene.rank.tb,n.common=1000,n.specific=1000,th.ra
 			    ff <- x < th.rank
 			    nSpe <- sum(ff)
 			    out.tb <- data.table(geneID=rownames(gene.rank.tail.mat)[i],
-						 nDataSets=nSpe,
-						 fDataSets=nSpe/length(x),
-						 medianRankSpeGene=if(nSpe > 0) median(x[ff]) else 1)
+                                     nDataSets=nSpe,
+                                     fDataSets=nSpe/length(x),
+                                     medianRankSpeGene=if(nSpe > 0) median(x[ff]) else 1)
 			    out.tb[,hasSpeGene:= (nSpe>=3 & fDataSets > 0.1) ]
 					}))
     f.specific.tb <- f.specific.tb[hasSpeGene==T,][order(medianRankSpeGene),]
@@ -103,6 +103,7 @@ run.Leiden <- function(dat.pca,SNN.k=20,myseed=123456,...)
 #' @param sce.list list; list containing sce objects
 #' @param res.hi integer; high resolution used for mini-clusters identification
 #' @param method.clustering character; clustering method for mini-clusters identification. (default: "louvain")
+#' @param ncores integer; number of CPU cores to use. (default: 12)
 #' @param cor.var character vector; subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")
 #' @param contamination.vec character vector; cells to be excluded. (default: NULL)
 #' @param use.harmony logical; use harmony to correct for batch effect (batches are defined in column batchV). (default: FALSE)
@@ -111,6 +112,7 @@ run.Leiden <- function(dat.pca,SNN.k=20,myseed=123456,...)
 mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.list,
 				   res.hi,method.clustering="louvain",
 				   #cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T,cor.ISG=F,
+                   ncores=12,
 				   cor.var=c("S.Score","G2M.Score","DIG.Score1"),
 				   contamination.vec=NULL,use.harmony=F)
 {
@@ -318,10 +320,12 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
 #' @importFrom sscVis loginfo ssc.build
 #' @importFrom harmony RunHarmony
 #' @importFrom data.table as.data.table dcast
+#' @importFrom matrixStats rowMedians
 #' @importFrom plyr llply ldply
 #' @importFrom R.utils loadToEnv
 #' @importFrom utils head str write.table
-#' @importFrom ggplot2 ggplot ggsave theme
+#' @importFrom ggplot2 ggplot ggsave theme element_text
+#' @importFrom ggpubr ggboxplot
 #' @importFrom RhpcBLASctl omp_set_num_threads
 #' @importFrom doParallel registerDoParallel
 #' @param exp.list.table data.table; one line for a dataset
@@ -496,6 +500,7 @@ run.inte.metaClust <- function(exp.list.table,
     loginfo("begin merge data ...")
     dat.merged.list <- mergeDataFromFileTable(exp.list.table,gene.de.common,seu.list,sce.list,res.hi,
 					      cor.var=cor.var,
+                          ncores=ncores,
 					      contamination.vec=contamination.vec)
     loginfo("end merge data.")
     
@@ -630,7 +635,7 @@ run.inte.metaClust <- function(exp.list.table,
 #' @importFrom S4Vectors `metadata<-` metadata
 #' @importFrom sscVis loginfo ssc.build ssc.plot.heatmap
 #' @importFrom sscClust integrate.by.avg effectsize
-#' @importFrom data.table as.data.table data.table
+#' @importFrom data.table as.data.table data.table `:=`
 #' @importFrom plyr llply l_ply
 #' @importFrom stats pt qnorm
 #' @importFrom utils head write.table
@@ -908,6 +913,18 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
     return(sce.pb)
 }
 
+#' make heatmap for top signature genes
+#' @importFrom sscVis plotMatrix.simple ssc.plot.heatmap
+#' @importFrom data.table dcast
+#' @importFrom RColorBrewer brewer.pal
+#' @importFrom grid gpar unit
+#' @param out.prefix character; output prefix
+#' @param gene.desc.top data.table; gene info table
+#' @param sce.pb object of SingleCellExperiment; gene by meta-cluster values stored in this object
+#' @param gene.to.show.tb data.table; infomation of genes to be shown
+#' @param value.var character; stored value to use. (default: "comb.ES")
+#' @param colSet list; color set to use. (default: list())
+#' @param ... ; parameters passed to sscVis::plotMatrix.simple
 sigGeneHeatmap <- function(out.prefix,gene.desc.top,sce.pb,gene.to.show.tb,value.var="comb.ES",colSet=list(),...)
 {
     ### show combined ES
@@ -927,9 +944,9 @@ sigGeneHeatmap <- function(out.prefix,gene.desc.top,sce.pb,gene.to.show.tb,value
 						       ncol=ncol(g.plot.mtx))
     colnames(g.plot.mtx.bin) <- colnames(g.plot.mtx)
     rownames(g.plot.mtx.bin) <- rownames(g.plot.mtx)
-    head(g.plot.mtx,n=3)
-    head(g.plot.mtx.bin,n=3)
-    sscVis::plotMatrix.simple(g.plot.mtx.bin,out.prefix=sprintf("%s.slim.bin",out.prefix),
+    #head(g.plot.mtx,n=3)
+    #head(g.plot.mtx.bin,n=3)
+    plotMatrix.simple(g.plot.mtx.bin,out.prefix=sprintf("%s.slim.bin",out.prefix),
 			      col.ht=structure(rev(brewer.pal(5,name="RdBu")), names=1:5),
 			      par.legend=list(labels=rev(bin.values), at=5:1),
 			      row.split=gene.to.show.tb$Group,
@@ -938,7 +955,7 @@ sigGeneHeatmap <- function(out.prefix,gene.desc.top,sce.pb,gene.to.show.tb,value
 					       row_gap = unit(0, "mm"),
 					       row_title_rot=0),
 			      exp.name="comb.ES",...)
-    sscVis::plotMatrix.simple(g.plot.mtx,out.prefix=sprintf("%s.slim",out.prefix),
+    plotMatrix.simple(g.plot.mtx,out.prefix=sprintf("%s.slim",out.prefix),
 			      row.split=gene.to.show.tb$Group,
 			      palatte=rev(brewer.pal(n = 7,name = "RdBu")),
 			      z.lo=-0.6,z.hi=0.6,
@@ -1140,7 +1157,7 @@ dataOnRDPlot <- function(seu,sce,out.prefix,rd="umap",graph.name="RNA_snn",resol
 }
 
 makeGeneOnTSNEPlot <- function(sce,rd,out.prefix,
-			       geneOnUmap.list=g.GeneOnUmap.list,
+			       geneOnUmap.list=g.geneOnUmap.list,
 			       plot.ncol=NULL,plot.nrow=NULL,plot.type="png",
 			       plot.width=NULL,plot.height=NULL,do.parallel=T,...)
 {
@@ -1180,7 +1197,7 @@ makeGeneOnTSNEPlot <- function(sce,rd,out.prefix,
 }
 
 makeViolinPlot <- function(sce,out.prefix,assay.name="exprs",col.group="ClusterID",
-					   geneOnUmap.list=g.GeneOnUmap.list,plot.type="png",clamp=c(-2.5,5),
+					   geneOnUmap.list=g.geneOnUmap.list,plot.type="png",clamp=c(-2.5,5),
 					   plot.width=NULL,plot.height=NULL,...)
 {
     dir.create(dirname(out.prefix),F,T)
@@ -1201,35 +1218,6 @@ makeViolinPlot <- function(sce,out.prefix,assay.name="exprs",col.group="ClusterI
 	    }
     },.parallel=T)
 
-}
-
-
-LISIDistPlot <- function(lisi.pca,lisi.harmony,group=NULL)
-{
-    if(ncol(lisi.pca) > 2){
-	colnames(lisi.pca)[3] <- "ClusterID"
-    }
-    if(ncol(lisi.harmony) > 2){
-	colnames(lisi.harmony)[3] <- "ClusterID"
-    }
-    lisi.pca$rd <- "PCA"
-    lisi.harmony$rd <- "Harmony"
-    dat.plot <- rbind(lisi.pca,lisi.harmony)
-
-    dat.plot$cellID <- rownames(dat.plot)
-    dat.plot <- as.data.table(dat.plot)
-    dat.plot <- melt(dat.plot,id.vars=c("cellID","rd"))
-    if(!is.null(group)){
-	    dat.plot <- dat.plot[variable %in% group,]
-    }
-    p <- ggplot(dat.plot,aes(value)) +
-		    geom_density(aes(color=rd,group=rd,fill=rd),alpha=0.5,size=0.5) +
-		    xlab("LISI") +
-		    theme_bw()
-    if(length(unique(dat.plot$variable))>1){
-	    p <- p + facet_wrap(~variable,ncol=1,scales="free")
-    }
-    return(p)
 }
 
 saveSCEPerDataSet <- function(exp.list.table,meta.tb,out.prefix)

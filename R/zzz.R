@@ -76,6 +76,10 @@ g.geneOnUmap.list <- list(
                                  "Dim1","Dim2",
                                  "vst.variance","vst.variance.standardized",
                                  "geneID","aid",
+                                 "median.F.rank","hasSpeGene","fDataSets","medianRankSpeGene",
+                                 "logFC","sig","comb.padj","comb.ES","sig.cate","meta.cluster",
+                                 "freq.sig","geneSet.TF",
+                                 "dataset",
                                  "dprime","vardprime","P.Value","adj.P.Val"))
     }
 }

@@ -11,6 +11,7 @@ mergeDataFromFileTable(
   sce.list,
   res.hi,
   method.clustering = "louvain",
+  ncores = 12,
   cor.var = c("S.Score", "G2M.Score", "DIG.Score1"),
   contamination.vec = NULL,
   use.harmony = F
@@ -28,6 +29,8 @@ mergeDataFromFileTable(
 \item{res.hi}{integer; high resolution used for mini-clusters identification}
 
 \item{method.clustering}{character; clustering method for mini-clusters identification. (default: "louvain")}
+
+\item{ncores}{integer; number of CPU cores to use. (default: 12)}
 
 \item{cor.var}{character vector; subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")}
 
