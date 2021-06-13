@@ -5,9 +5,9 @@ suppressPackageStartupMessages(library("argparse"))
 parser <- ArgumentParser()
 parser$add_argument("-a", "--aFile", type="character", required=TRUE, help="input seu file list")
 parser$add_argument("-b", "--bFile", type="character", required=TRUE, help="input sce file list")
-parser$add_argument("-c", "--stype", type="character", help="only analyze stype specified (default all)")
 parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="outPrefix")
-#parser$add_argument("-s", "--sample", type="character", default="SAMPLE", help="sample id")
+parser$add_argument("-c", "--stype", type="character", help="only analyze stype specified (default all)")
+parser$add_argument("-u", "--geneIDFile", type="character", help="gene id mapping file")
 parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
 parser$add_argument("-n", "--ncores", type="integer",default=16L, help="[default %(default)s]")
 parser$add_argument("-m", "--measurement",type="character",default="counts",help="[default %(default)s]")
@@ -15,12 +15,15 @@ parser$add_argument("-r", "--resolution",type="character",default="2",help="[def
 parser$add_argument("-t", "--scTransform",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-y", "--harmony",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-g", "--deg",action="store_true",default=FALSE,help="[default %(default)s]")
+parser$add_argument("-w", "--ncellDEG",type="integer",default=1500,
+                    help="number of cells to downsample to for each group. used in DEG analysis. [default %(default)s]")
 parser$add_argument("-s", "--scale",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-j", "--corVar", type="character", default="S.Score,G2M.Score,DIG.Score1",
 		    help="subset of S.Score,G2M.Score,DIG.Score1,ISG.Score1, or NULL. If correct something, always correct for batchV and percent.mito. [default %(default)s]")
 parser$add_argument("-f", "--filterout",type="character",help="filterout cells")
 parser$add_argument("-k", "--keep",type="character",help="keep cells")
-parser$add_argument("-p", "--platform",type="character",required=TRUE,help="platform such as 10X, SmartSeq2")
+parser$add_argument("-p", "--platform",type="character",default="10X",
+                    help="platform such as 10X, SmartSeq2 [default %(default)s)]")
 args <- parser$parse_args()
 print(args)
 
@@ -38,10 +41,12 @@ opt.resolution <- args$resolution
 opt.scTransform <- args$scTransform
 opt.harmony <- args$harmony
 opt.doDEG <- args$deg
+opt.ncell.deg <- args$ncellDEG
 opt.scale <- args$scale
 opt.cor.var <- if(args$corVar=="") c("") else unlist(strsplit(args$corVar,",",perl=T))
 opt.filterout <- args$filterout
 opt.keep <- args$keep
+opt.geneIDFile <- args$geneIDFile
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -73,6 +78,11 @@ dat.ext.dir <- system.file("extdata",package="scPip")
 gene.exclude.file <- sprintf("%s/exclude.gene.misc.misc.v3.RData",dat.ext.dir)
 
 ######################
+
+gene.mapping.table <- NULL
+if(!is.null(opt.geneIDFile) && file.exists(opt.geneIDFile) && grepl("\\.rds$",opt.geneIDFile,perl=T)){
+    gene.mapping.table <- readRDS(opt.geneIDFile)
+}
 
 env.misc <- loadToEnv(gene.exclude.file)
 env.misc$all.gene.ignore.df %>% head
@@ -157,6 +167,8 @@ obj.list <- run.Seurat3(seu,sce,out.prefix,
                         use.sctransform=opt.scTransform,
                         use.harmony=opt.harmony,
                         do.deg=opt.doDEG,
+                        ncell.deg=opt.ncell.deg,
+                        gene.mapping.table=gene.mapping.table,
                         ###do.adj=T,do.scale=F,
 			            cor.var=opt.cor.var,
                         do.scale=opt.scale,
