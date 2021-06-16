@@ -904,7 +904,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 
         cat(sprintf(".... to plot sigGeneHeatmap(..universal.TF..)\n"))
         #### universal TF
-        {
+        if("geneSet.TF" %in% colnames(gene.desc.top)){
             g.tb <- gene.desc.top[sig==T & freq.sig > 0.5 & geneSet.TF==T,][order(meta.cluster,-comb.ES),]
             write.table(g.tb,sprintf("%s.universal.TF.txt",out.prefix),
                             row.names=F,sep="\t",quote=F)
@@ -952,15 +952,17 @@ sigGeneHeatmap <- function(out.prefix,gene.desc.top,sce.pb,gene.to.show.tb,value
     rownames(g.plot.mtx.bin) <- rownames(g.plot.mtx)
     #head(g.plot.mtx,n=3)
     #head(g.plot.mtx.bin,n=3)
-    plotMatrix.simple(g.plot.mtx.bin,out.prefix=sprintf("%s.slim.bin",out.prefix),
-			      col.ht=structure(rev(brewer.pal(5,name="RdBu")), names=1:5),
-			      par.legend=list(labels=rev(bin.values), at=5:1),
-			      row.split=gene.to.show.tb$Group,
-			      pdf.width=if(ncol(g.plot.mtx)<20) 6.5 else 8,
-			      par.heatmap=list(cex.column=0.8,border=T,
-					       row_gap = unit(0, "mm"),
-					       row_title_rot=0),
-			      exp.name="comb.ES",...)
+    if(F){
+        plotMatrix.simple(g.plot.mtx.bin,out.prefix=sprintf("%s.slim.bin",out.prefix),
+                      col.ht=structure(rev(brewer.pal(5,name="RdBu")), names=1:5),
+                      par.legend=list(labels=rev(bin.values), at=5:1),
+                      row.split=gene.to.show.tb$Group,
+                      pdf.width=if(ncol(g.plot.mtx)<20) 6.5 else 8,
+                      par.heatmap=list(cex.column=0.8,border=T,
+                               row_gap = unit(0, "mm"),
+                               row_title_rot=0),
+                      exp.name="comb.ES",...)
+    }
     plotMatrix.simple(g.plot.mtx,out.prefix=sprintf("%s.slim",out.prefix),
 			      row.split=gene.to.show.tb$Group,
 			      palatte=rev(brewer.pal(n = 7,name = "RdBu")),
