@@ -645,6 +645,7 @@ run.inte.metaClust <- function(exp.list.table,
 #' @param min.ncells integer; only meta-clusters with number of cells > min.ncells are used. (default: 30)
 #' @param min.ncellsStudy integer; only datasets with number of cells > min.ncellsStudy are used. (default: 200)
 #' @param gset.list list; list containing gene sets. (default: NULL)
+#' @param direct.sig logical; if TRUE, genes exibit significance in all datasets will be assigned "sig" directly, irrespective of combined ES and combined adjusted p vlaue. (default: TRUE)
 #' @param de.mode character; mode of differential expression analysis. (default: "multiAsTwo")
 #' @param column.exp character; convert the column of limma result to assay data. (default: "meanScale")
 #' @param gene.used character; only keep genes in gene.used. (default: NULL)
@@ -655,6 +656,7 @@ run.inte.metaClust <- function(exp.list.table,
 convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 				    min.ncells=30,min.ncellsStudy=200,
 				    gset.list=NULL,
+                    direct.sig=T,
 				    de.mode="multiAsTwo",column.exp="meanScale",
 				    gene.used=NULL,colSet=list())
 {
@@ -818,6 +820,8 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
     #### HCC and LIHC
     #sce.pb <- changeSomeNames(sce.pb)
     metadata(sce.pb)$ssc$colSet <- colSet
+    ### in limma output, the significance is set by logFC and p-value
+    ### here, reset significance by effect size and p-value
     sce.pb <- resetSig(sce.pb)
     
 
@@ -827,7 +831,11 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
         gene.desc.top <- rank.de.gene(sce.pb,group="meta.cluster",
                              weight.adj="weight.tech", group.2nd="cancerType")
 
-        gene.desc.top[,sig:=comb.padj < 0.01 & comb.ES>0.15]
+        if(direct.sig){
+            gene.desc.top[,sig:=(comb.padj < 0.01 & comb.ES>0.15) | freq.sig==1]
+        }else{
+            gene.desc.top[,sig:=comb.padj < 0.01 & comb.ES>0.15]
+        }
         gene.desc.top[,sig.cate:="notSig"]
         gene.desc.top[sig==T ,sig.cate:="Tier3"]
         gene.desc.top[sig==T & comb.ES>0.5,sig.cate:="Tier1"]
