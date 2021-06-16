@@ -18,7 +18,7 @@ convertLimmaToSCE(
 )
 }
 \arguments{
-\item{de.limma.tb}{data.table; one line for a dataset}
+\item{de.limma.tb}{data.table; one line for a dataset. columns "data.id", "platform", and "dfile" are required}
 
 \item{out.prefix}{character; output prefix}
 

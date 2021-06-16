@@ -634,12 +634,12 @@ run.inte.metaClust <- function(exp.list.table,
 #' @importFrom SummarizedExperiment assay
 #' @importFrom S4Vectors `metadata<-` metadata
 #' @importFrom sscVis loginfo ssc.build ssc.plot.heatmap
-#' @importFrom sscClust integrate.by.avg effectsize
+#' @importFrom sscClust integrate.by.avg effectsize rank.de.gene
 #' @importFrom data.table as.data.table data.table `:=`
 #' @importFrom plyr llply l_ply
 #' @importFrom stats pt qnorm
 #' @importFrom utils head write.table
-#' @param de.limma.tb data.table; one line for a dataset
+#' @param de.limma.tb data.table; one line for a dataset. columns "data.id", "platform", and "dfile" are required
 #' @param out.prefix character; output prefix
 #' @param ncores integer; number of CPU cores to use. (default: 8)
 #' @param min.ncells integer; only meta-clusters with number of cells > min.ncells are used. (default: 30)
@@ -710,7 +710,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
                                     zp <- qnorm(pt(-(fit$t[,"II",drop=F]),df=(fit$df.prior+fit$df.residual))[,1])
                                  }
 
-                                 print(all(rownames(ES)==names(zp)))
+                                 ##print(all(rownames(ES)==names(zp)))
                                  out.tb <- data.table(geneSymbol=geneID.mapping.vec[rownames(ES)],cluster=group.id)
                                  out.tb <- cbind(out.tb,ES,zp)
                                  return(out.tb)
@@ -798,19 +798,25 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 				     ncores=ncores,gene.de.list=gene.de.list, de.thres=1000,
 				     do.clustering=F,
 				     avg.by="ClusterID")
+    sce.debug <<- sce.pb
 
     #### some meta info
-    mm <- regexec(".+\\.(CD[48]\\.c\\d+.+)$",colnames(sce.pb),perl=T)
-    sce.pb$meta.cluster <- sapply(regmatches(colnames(sce.pb),mm),"[",2)
-    sce.pb$cancerType <- sce.pb$dataset.id
+    #mm <- regexec(".+\\.(CD[48]\\.c\\d+.+)$",colnames(sce.pb),perl=T)
+    #sce.pb$meta.cluster <- sapply(regmatches(colnames(sce.pb),mm),"[",2)
+    m <- regexec("^(.+?)\\.(.+?)\\.(.+)$",colnames(sce.pb),perl=T)
+    mm <- regmatches(colnames(sce.pb),m)
     sce.pb$dataset.id <- NULL
-    sce.pb$dataset.old <- gsub("\\.CD[48]\\..+$","",sce.pb$ClusterID,perl=T)
-    sce.pb$dataset <- sce.pb$dataset.old
+    sce.pb$meta.cluster <- sapply(mm,"[",4)
+    sce.pb$cancerType <- sapply(mm,"[",2)
+    sce.pb$dataset <- sprintf("%s.%s",sapply(mm,"[",2),sapply(mm,"[",3))
+    #sce.pb$cancerType <- sce.pb$dataset.id
+    #sce.pb$dataset.old <- gsub("\\.CD[48]\\..+$","",sce.pb$ClusterID,perl=T)
+    #sce.pb$dataset <- sce.pb$dataset.old
     dataset.mapping <- structure(de.limma.tb$platform,names=de.limma.tb$data.id)
-    sce.pb$tech <- ifelse(dataset.mapping[sce.pb$dataset.old]=="SmartSeq2","SmartSeq2","Droplet")
+    sce.pb$tech <- ifelse(dataset.mapping[sce.pb$dataset]=="SmartSeq2","SmartSeq2","Droplet")
     sce.pb$weight.tech <- ifelse(sce.pb$tech=="SmartSeq2",1,0.5)
     #### HCC and LIHC
-    sce.pb <- changeSomeNames(sce.pb)
+    #sce.pb <- changeSomeNames(sce.pb)
     metadata(sce.pb)$ssc$colSet <- colSet
     sce.pb <- resetSig(sce.pb)
     
@@ -818,7 +824,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
     ##### core signature genes
     {
         ################# sig genes table
-        gene.desc.top <- sscClust:::rank.de.gene(sce.pb,group="meta.cluster",
+        gene.desc.top <- rank.de.gene(sce.pb,group="meta.cluster",
                              weight.adj="weight.tech", group.2nd="cancerType")
 
         gene.desc.top[,sig:=comb.padj < 0.01 & comb.ES>0.15]
