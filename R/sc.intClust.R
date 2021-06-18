@@ -800,7 +800,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 				     ncores=ncores,gene.de.list=gene.de.list, de.thres=1000,
 				     do.clustering=F,
 				     avg.by="ClusterID")
-    sce.debug <<- sce.pb
+    #sce.debug <<- sce.pb
 
     #### some meta info
     #mm <- regexec(".+\\.(CD[48]\\.c\\d+.+)$",colnames(sce.pb),perl=T)
