@@ -11,6 +11,7 @@ convertLimmaToSCE(
   min.ncells = 30,
   min.ncellsStudy = 200,
   gset.list = NULL,
+  direct.sig = T,
   de.mode = "multiAsTwo",
   column.exp = "meanScale",
   gene.used = NULL,
@@ -18,7 +19,7 @@ convertLimmaToSCE(
 )
 }
 \arguments{
-\item{de.limma.tb}{data.table; one line for a dataset}
+\item{de.limma.tb}{data.table; one line for a dataset. columns "data.id", "platform", and "dfile" are required}
 
 \item{out.prefix}{character; output prefix}
 
@@ -29,6 +30,8 @@ convertLimmaToSCE(
 \item{min.ncellsStudy}{integer; only datasets with number of cells > min.ncellsStudy are used. (default: 200)}
 
 \item{gset.list}{list; list containing gene sets. (default: NULL)}
+
+\item{direct.sig}{logical; if TRUE, genes exibit significance in all datasets will be assigned "sig" directly, irrespective of combined ES and combined adjusted p vlaue. (default: TRUE)}
 
 \item{de.mode}{character; mode of differential expression analysis. (default: "multiAsTwo")}
 

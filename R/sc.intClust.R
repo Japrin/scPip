@@ -634,17 +634,18 @@ run.inte.metaClust <- function(exp.list.table,
 #' @importFrom SummarizedExperiment assay
 #' @importFrom S4Vectors `metadata<-` metadata
 #' @importFrom sscVis loginfo ssc.build ssc.plot.heatmap
-#' @importFrom sscClust integrate.by.avg effectsize
+#' @importFrom sscClust integrate.by.avg effectsize rank.de.gene
 #' @importFrom data.table as.data.table data.table `:=`
 #' @importFrom plyr llply l_ply
 #' @importFrom stats pt qnorm
 #' @importFrom utils head write.table
-#' @param de.limma.tb data.table; one line for a dataset
+#' @param de.limma.tb data.table; one line for a dataset. columns "data.id", "platform", and "dfile" are required
 #' @param out.prefix character; output prefix
 #' @param ncores integer; number of CPU cores to use. (default: 8)
 #' @param min.ncells integer; only meta-clusters with number of cells > min.ncells are used. (default: 30)
 #' @param min.ncellsStudy integer; only datasets with number of cells > min.ncellsStudy are used. (default: 200)
 #' @param gset.list list; list containing gene sets. (default: NULL)
+#' @param direct.sig logical; if TRUE, genes exibit significance in all datasets will be assigned "sig" directly, irrespective of combined ES and combined adjusted p vlaue. (default: TRUE)
 #' @param de.mode character; mode of differential expression analysis. (default: "multiAsTwo")
 #' @param column.exp character; convert the column of limma result to assay data. (default: "meanScale")
 #' @param gene.used character; only keep genes in gene.used. (default: NULL)
@@ -655,6 +656,7 @@ run.inte.metaClust <- function(exp.list.table,
 convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 				    min.ncells=30,min.ncellsStudy=200,
 				    gset.list=NULL,
+                    direct.sig=T,
 				    de.mode="multiAsTwo",column.exp="meanScale",
 				    gene.used=NULL,colSet=list())
 {
@@ -710,7 +712,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
                                     zp <- qnorm(pt(-(fit$t[,"II",drop=F]),df=(fit$df.prior+fit$df.residual))[,1])
                                  }
 
-                                 print(all(rownames(ES)==names(zp)))
+                                 ##print(all(rownames(ES)==names(zp)))
                                  out.tb <- data.table(geneSymbol=geneID.mapping.vec[rownames(ES)],cluster=group.id)
                                  out.tb <- cbind(out.tb,ES,zp)
                                  return(out.tb)
@@ -798,30 +800,42 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 				     ncores=ncores,gene.de.list=gene.de.list, de.thres=1000,
 				     do.clustering=F,
 				     avg.by="ClusterID")
+    sce.debug <<- sce.pb
 
     #### some meta info
-    mm <- regexec(".+\\.(CD[48]\\.c\\d+.+)$",colnames(sce.pb),perl=T)
-    sce.pb$meta.cluster <- sapply(regmatches(colnames(sce.pb),mm),"[",2)
-    sce.pb$cancerType <- sce.pb$dataset.id
+    #mm <- regexec(".+\\.(CD[48]\\.c\\d+.+)$",colnames(sce.pb),perl=T)
+    #sce.pb$meta.cluster <- sapply(regmatches(colnames(sce.pb),mm),"[",2)
+    m <- regexec("^(.+?)\\.(.+?)\\.(.+)$",colnames(sce.pb),perl=T)
+    mm <- regmatches(colnames(sce.pb),m)
     sce.pb$dataset.id <- NULL
-    sce.pb$dataset.old <- gsub("\\.CD[48]\\..+$","",sce.pb$ClusterID,perl=T)
-    sce.pb$dataset <- sce.pb$dataset.old
+    sce.pb$meta.cluster <- sapply(mm,"[",4)
+    sce.pb$cancerType <- sapply(mm,"[",2)
+    sce.pb$dataset <- sprintf("%s.%s",sapply(mm,"[",2),sapply(mm,"[",3))
+    #sce.pb$cancerType <- sce.pb$dataset.id
+    #sce.pb$dataset.old <- gsub("\\.CD[48]\\..+$","",sce.pb$ClusterID,perl=T)
+    #sce.pb$dataset <- sce.pb$dataset.old
     dataset.mapping <- structure(de.limma.tb$platform,names=de.limma.tb$data.id)
-    sce.pb$tech <- ifelse(dataset.mapping[sce.pb$dataset.old]=="SmartSeq2","SmartSeq2","Droplet")
+    sce.pb$tech <- ifelse(dataset.mapping[sce.pb$dataset]=="SmartSeq2","SmartSeq2","Droplet")
     sce.pb$weight.tech <- ifelse(sce.pb$tech=="SmartSeq2",1,0.5)
     #### HCC and LIHC
-    sce.pb <- changeSomeNames(sce.pb)
+    #sce.pb <- changeSomeNames(sce.pb)
     metadata(sce.pb)$ssc$colSet <- colSet
+    ### in limma output, the significance is set by logFC and p-value
+    ### here, reset significance by effect size and p-value
     sce.pb <- resetSig(sce.pb)
     
 
     ##### core signature genes
     {
         ################# sig genes table
-        gene.desc.top <- sscClust:::rank.de.gene(sce.pb,group="meta.cluster",
+        gene.desc.top <- rank.de.gene(sce.pb,group="meta.cluster",
                              weight.adj="weight.tech", group.2nd="cancerType")
 
-        gene.desc.top[,sig:=comb.padj < 0.01 & comb.ES>0.15]
+        if(direct.sig){
+            gene.desc.top[,sig:=(comb.padj < 0.01 & comb.ES>0.15) | freq.sig==1]
+        }else{
+            gene.desc.top[,sig:=comb.padj < 0.01 & comb.ES>0.15]
+        }
         gene.desc.top[,sig.cate:="notSig"]
         gene.desc.top[sig==T ,sig.cate:="Tier3"]
         gene.desc.top[sig==T & comb.ES>0.5,sig.cate:="Tier1"]
@@ -898,7 +912,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 
         cat(sprintf(".... to plot sigGeneHeatmap(..universal.TF..)\n"))
         #### universal TF
-        {
+        if("geneSet.TF" %in% colnames(gene.desc.top)){
             g.tb <- gene.desc.top[sig==T & freq.sig > 0.5 & geneSet.TF==T,][order(meta.cluster,-comb.ES),]
             write.table(g.tb,sprintf("%s.universal.TF.txt",out.prefix),
                             row.names=F,sep="\t",quote=F)
@@ -946,15 +960,17 @@ sigGeneHeatmap <- function(out.prefix,gene.desc.top,sce.pb,gene.to.show.tb,value
     rownames(g.plot.mtx.bin) <- rownames(g.plot.mtx)
     #head(g.plot.mtx,n=3)
     #head(g.plot.mtx.bin,n=3)
-    plotMatrix.simple(g.plot.mtx.bin,out.prefix=sprintf("%s.slim.bin",out.prefix),
-			      col.ht=structure(rev(brewer.pal(5,name="RdBu")), names=1:5),
-			      par.legend=list(labels=rev(bin.values), at=5:1),
-			      row.split=gene.to.show.tb$Group,
-			      pdf.width=if(ncol(g.plot.mtx)<20) 6.5 else 8,
-			      par.heatmap=list(cex.column=0.8,border=T,
-					       row_gap = unit(0, "mm"),
-					       row_title_rot=0),
-			      exp.name="comb.ES",...)
+    if(F){
+        plotMatrix.simple(g.plot.mtx.bin,out.prefix=sprintf("%s.slim.bin",out.prefix),
+                      col.ht=structure(rev(brewer.pal(5,name="RdBu")), names=1:5),
+                      par.legend=list(labels=rev(bin.values), at=5:1),
+                      row.split=gene.to.show.tb$Group,
+                      pdf.width=if(ncol(g.plot.mtx)<20) 6.5 else 8,
+                      par.heatmap=list(cex.column=0.8,border=T,
+                               row_gap = unit(0, "mm"),
+                               row_title_rot=0),
+                      exp.name="comb.ES",...)
+    }
     plotMatrix.simple(g.plot.mtx,out.prefix=sprintf("%s.slim",out.prefix),
 			      row.split=gene.to.show.tb$Group,
 			      palatte=rev(brewer.pal(n = 7,name = "RdBu")),

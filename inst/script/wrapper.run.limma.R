@@ -8,6 +8,8 @@ parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="
 parser$add_argument("-p", "--platform",type="character",required=TRUE,help="platform such as 10X, SmartSeq2")
 parser$add_argument("-n", "--ncores", type="integer",default=16L, help="[default %(default)s]")
 parser$add_argument("-m", "--measurement",type="character",default="counts",help="[default %(default)s]")
+parser$add_argument("-w", "--ncellDEG",type="integer",default=1500,
+                    help="number of cells to downsample to for each group. used in DEG analysis. [default %(default)s]")
 parser$add_argument("-c", "--stype", type="character", help="only analyze stype specified (default all)")
 parser$add_argument("-a", "--group", type="character",default="ClusterID", help="group var (default ClusterID)")
 parser$add_argument("-d", "--groupMode", type="character",default="multi", help="group mode (default multi)")
@@ -31,6 +33,7 @@ sce.file <- args$bFile
 out.prefix <- args$outPrefix
 opt.ncores <- args$ncores
 opt.measurement <- args$measurement
+opt.ncellDEG <- args$ncellDEG
 opt.stype <- args$stype
 opt.platform <- args$platform
 opt.group <- args$group
@@ -136,7 +139,7 @@ tic("limma")
 de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,
 			   ####ncell.downsample=if(opt.mode=="multi") 1500 else 25000,
 			   #ncell.downsample=if(opt.mode=="multi") 1500 else NULL,
-			   ncell.downsample=if(opt.mode=="multi") 500 else NULL,
+			   ncell.downsample=opt.ncellDEG,
 			   ####ncell.downsample=if(opt.mode=="multi") 1500 else 100,
 			   group.var=opt.group,batch=if(nBatch>1) "batchV" else NULL,
 			   verbose=3,
