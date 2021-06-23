@@ -676,6 +676,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             de.out <- readRDS(dfile)
             #### number of cells in each ClusterID
             #de.out$all[1:2,]
+            ncells.control.vec <- NULL
             if(de.mode=="multi"){
                 ncells.vec <- unlist(unique(as.data.table(de.out$all[,grep("^length\\.",
                                                colnames(de.out$all),
@@ -686,8 +687,11 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             }else if(de.mode=="multiAsTwo"){
                 ##unique(as.data.table(de.out$all[,c("cluster",grep("^length\\.",colnames(de.out$all),value=T)),with=F]))
                 ncell.df <- unique(as.data.table(de.out$all[,c("cluster","length._case"),with=F]))
-                colnames(ncell.df) <- c("ClusterID","ncells")
+                ncell.control.df <- unique(as.data.table(de.out$all[,c("cluster","length._control"),with=F]))
+                ncell.df <- merge(ncell.df,ncell.control.df,by="cluster")
+                colnames(ncell.df) <- c("ClusterID","ncells","ncells.control")
                 ncells.vec <- structure(ncell.df$ncells,names=ncell.df$ClusterID)
+                ncells.control.vec <- structure(ncell.df$ncells.control,names=ncell.df$ClusterID)
             }
             
             #### information from de.out$fit
@@ -726,7 +730,8 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             #}else{
             #	mnames <- c("logFC","t","P.Value","adj.P.Val","meanExp","meanScale")
             #}
-            mnames <- c("logFC","t","P.Value","adj.P.Val","meanExp","meanScale","freq._case","freq._control")
+            mnames <- c("logFC","t","P.Value","adj.P.Val","meanExp","meanScale","freq._case","freq._control",
+                        "OR","OR.p.value","OR.adj.pvalue")
 
             ### significance
             dat.d.sig <- de.out$all[,c("geneSymbol","cluster",mnames),with=F]
@@ -746,6 +751,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
                                 if(!is.null(gene.used)){
                                     gene.pad <- setdiff(gene.used,rownames(dd.mtx))
                                     if(length(gene.pad)>0){
+                                        #### padding values for these ars also 1: OR, OR.p.value, OR.adj.pvalue
                                         value.pad <- if(x %in% c("logFC","t","meanExp","meanScale",
                                                                  "freq._case","freq._control",
                                                                  "sig",
@@ -768,6 +774,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             sce.obj$ClusterID <- colnames(sce.obj)
             sce.obj$nCellsStudy <- sum(ncells.vec)
             sce.obj$nCellsCluster <- ncells.vec[sce.obj$ClusterID]
+            if(!is.null(ncells.control.vec)) { sce.obj$nCellsOther <- ncells.control.vec[sce.obj$ClusterID] }
             ###sce.obj <- sce.obj[,sce.obj$nCellsCluster >= min.ncells]
             sce.obj <- sce.obj[,sce.obj$nCellsCluster >= min.ncells & sce.obj$nCellsStudy >= min.ncellsStudy]
 
@@ -820,6 +827,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
     #### HCC and LIHC
     #sce.pb <- changeSomeNames(sce.pb)
     metadata(sce.pb)$ssc$colSet <- colSet
+
     ### in limma output, the significance is set by logFC and p-value
     ### here, reset significance by effect size and p-value
     sce.pb <- resetSig(sce.pb)
@@ -829,7 +837,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
     {
         ################# sig genes table
         gene.desc.top <- rank.de.gene(sce.pb,group="meta.cluster",
-                             weight.adj="weight.tech", group.2nd="cancerType")
+                             weight.adj="weight.tech", group.2nd="cancerType",ncores=ncores)
 
         if(direct.sig){
             gene.desc.top[,sig:=(comb.padj < 0.01 & comb.ES>0.15) | freq.sig==1]
