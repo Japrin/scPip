@@ -178,9 +178,9 @@ if(!is.null(opt.removeContamination)){
     }
     
     f.cont.mtx <- seu[[]][,sprintf("%s.class",sig.name)]
+    f.cont <- rowSums(f.cont.mtx) > 0
     loginfo(sprintf("A total number of potential contamination: %d\n",sum(f.cont)))
     print(colSums(f.cont.mtx==T))
-    f.cont <- rowSums(f.cont.mtx) > 0
     seu <- seu[,!f.cont]
 
 }
