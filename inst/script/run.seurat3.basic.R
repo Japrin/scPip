@@ -22,7 +22,7 @@ parser$add_argument("-j", "--corVar", type="character", default="S.Score,G2M.Sco
 		    help="subset of S.Score,G2M.Score,DIG.Score1,ISG.Score1, or NULL. If correct something, always correct for batchV and percent.mito. [default %(default)s]")
 parser$add_argument("-f", "--filterout",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Filter out cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
 parser$add_argument("-k", "--keep",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Keep only cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
-parser$add_argument("-x", "--removeContamination",type="character",help="comma separated string indicates subset of predefined signature (plasmaB, caf, epi, T, and mac) will be calculated and cells with high signature scores will be removed. For example, use plasmaB:0.75,caf:0.75,epi:0.75,T:0.25 for myeloid cell analysis. The numer after colon is the threshold")
+parser$add_argument("-x", "--removeContamination",type="character",help="comma separated string indicates subset of predefined signature (plasmaB, caf, epi, T, cd8, and mac) will be calculated and cells with high signature scores will be removed. For example, use plasmaB:0.75,caf:0.75,epi:0.75,T:0.25 for myeloid cell analysis. The numer after colon is the threshold")
 parser$add_argument("-p", "--platform",type="character",default="10X",
                     help="platform such as 10X, SmartSeq2 [default %(default)s)]")
 args <- parser$parse_args()
@@ -162,6 +162,7 @@ if(!is.null(opt.removeContamination)){
                              "caf"=c("COL1A2", "COL1A1", "COL3A1","LUM"),
                              "epi"=c("KRT18","KRT19","EPCAM"),
                              "T"=c("CD3D","CD3G"),
+                             "cd8"=c("CD8A","CD8B"),
                              "mac"=c("LYZ","C1QA","C1QB","CD68"))
 
     sig.vec <- unlist(strsplit(opt.removeContamination,","))
