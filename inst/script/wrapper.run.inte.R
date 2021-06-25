@@ -2,6 +2,7 @@
 
 suppressPackageStartupMessages(library("argparse"))
 suppressPackageStartupMessages(library("scPip"))
+suppressPackageStartupMessages(library("data.table"))
 
 parser <- ArgumentParser()
 parser$add_argument("-i", "--inFile", type="character", required=TRUE, help="input files list")
