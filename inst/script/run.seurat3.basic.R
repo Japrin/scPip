@@ -20,8 +20,9 @@ parser$add_argument("-w", "--ncellDEG",type="integer",default=1500,
 parser$add_argument("-s", "--scale",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-j", "--corVar", type="character", default="S.Score,G2M.Score,DIG.Score1",
 		    help="subset of S.Score,G2M.Score,DIG.Score1,ISG.Score1, or NULL. If correct something, always correct for batchV and percent.mito. [default %(default)s]")
-parser$add_argument("-f", "--filterout",type="character",help="filterout cells")
-parser$add_argument("-k", "--keep",type="character",help="keep cells")
+parser$add_argument("-f", "--filterout",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Filter out cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
+parser$add_argument("-k", "--keep",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Keep only cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
+parser$add_argument("-x", "--removeContamination",type="character",help="comma separated string indicates subset of predefined signature (plasmaB, caf, epi, T, and mac) will be calculated and cells with high signature scores will be removed. For example, use plasmaB:0.75,caf:0.75,epi:0.75,T:0.25 for myeloid cell analysis. The numer after colon is the threshold")
 parser$add_argument("-p", "--platform",type="character",default="10X",
                     help="platform such as 10X, SmartSeq2 [default %(default)s)]")
 args <- parser$parse_args()
@@ -47,6 +48,7 @@ opt.cor.var <- if(args$corVar=="") c("") else unlist(strsplit(args$corVar,",",pe
 opt.filterout <- args$filterout
 opt.keep <- args$keep
 opt.geneIDFile <- args$geneIDFile
+opt.removeContamination <- args$removeContamination
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -54,24 +56,24 @@ saveRDS(args,file=sprintf("%s.args.rds",out.prefix))
 ###args <- readRDS(file=sprintf("%s.args.rds",out.prefix))
 
 ############## tune parametrs  ########
-library("sscClust")
-library("Seurat")
-library("tictoc")
-library("plyr")
-library("dplyr")
-library("tibble")
-library("doParallel")
-library("sscClust")
-library("Matrix")
-library("data.table")
-library("R.utils")
-library("gplots")
-library("ggplot2")
-library("ggpubr")
-library("cowplot")
-library("limma")
-library("reticulate")
-library("scPip")
+suppressMessages(library("sscVis"))
+suppressMessages(library("sscClust"))
+suppressMessages(library("Seurat"))
+suppressMessages(library("tictoc"))
+suppressMessages(library("plyr"))
+suppressMessages(library("dplyr"))
+suppressMessages(library("tibble"))
+suppressMessages(library("doParallel"))
+suppressMessages(library("Matrix"))
+suppressMessages(library("data.table"))
+suppressMessages(library("R.utils"))
+suppressMessages(library("gplots"))
+suppressMessages(library("ggplot2"))
+suppressMessages(library("ggpubr"))
+suppressMessages(library("cowplot"))
+suppressMessages(library("limma"))
+suppressMessages(library("reticulate"))
+suppressMessages(library("scPip"))
 options(stringsAsFactors = FALSE)
 
 dat.ext.dir <- system.file("extdata",package="scPip")
@@ -143,7 +145,7 @@ if(!is.null(seu) && !is.null(opt.keep)){
 		col.keep <- unlist(strsplit(opt.keep,":"))[1]
 		col.value <- unlist(strsplit(unlist(strsplit(opt.keep,":"))[2],","))
         if(col.keep %in% colnames(seu[[]])){
-            cat(sprintf("keep cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
+            cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
             f.cell <- seu[[]][,col.keep] %in% col.value
             print(summary(f.cell))
             seu <- seu[,f.cell]
@@ -151,6 +153,36 @@ if(!is.null(seu) && !is.null(opt.keep)){
             warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
         }
     }
+}
+
+if(!is.null(opt.removeContamination)){
+    ### opt.removeContamination <- "plasmaB:0.75,caf:0.75,epi:0.75,T:0.25"
+
+    g.cont.gene.list <- list("plasmaB"=c("JCHAIN"),
+                             "caf"=c("COL1A2", "COL1A1", "COL3A1","LUM"),
+                             "epi"=c("KRT18","KRT19","EPCAM"),
+                             "T"=c("CD3D","CD3G"),
+                             "mac"=c("LYZ","C1QA","C1QB","CD68"))
+
+    sig.vec <- unlist(strsplit(opt.removeContamination,","))
+    sig.name <- unname(sapply(sig.vec,function(x){ unlist(strsplit(x,":"))[1] }))
+    sig.thre <- unname(sapply(sig.vec,function(x){ as.numeric(unlist(strsplit(x,":"))[2]) }))
+
+    for(i in seq_along(sig.name)){
+        loginfo(sprintf("calculate signature score of %s cells ...",sig.name[i]))
+        seu <- fill.contamination(seu,out.prefix,
+                                  g.name=sig.name[i],
+                                  g.test=g.cont.gene.list[[sig.name[i]]],
+                                  score.t=sig.thre[i],
+                                  vis.v=c(0.25,0.5,0.75,1))
+    }
+    
+    f.cont.mtx <- seu[[]][,sprintf("%s.class",sig.name)]
+    loginfo(sprintf("A total number of potential contamination: %d\n",sum(f.cont)))
+    print(colSums(f.cont.mtx==T))
+    f.cont <- rowSums(f.cont.mtx) > 0
+    seu <- seu[,!f.cont]
+
 }
 
 if(!is.null(seu) && !is.null(sce)){

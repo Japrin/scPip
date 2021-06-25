@@ -806,6 +806,7 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
 #' @importFrom SummarizedExperiment assay `colData<-`
 #' @importFrom Seurat GetAssayData
 #' @importFrom data.table data.table melt
+#' @importFrom Matrix colMeans
 #' @importFrom ggplot2 ggplot geom_density geom_vline facet_wrap ggsave aes_string
 #' @param obj object of \code{SingleCellExperiment} or \code{Seurat}
 #' @param out.prefix character; output prefix. (default: NULL)
@@ -825,32 +826,49 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
     #require("data.table")
     ##### plasma contamination
     if(class(obj)[1]=="SingleCellExperiment"){
+        sigSize <- length(g.test)
+        g.test <- ssc.displayName2id(obj, display.name = g.test)
+        if(length(g.test) < sigSize){
+            warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test,collapse=",")))
+            return(obj)
+        }
         exp.data <- assay(obj,assay.name)[g.test,,drop=F]
-        B.score.tb <- data.table(cell=colnames(obj),B.score= colMeans(exp.data))
-        B.score.tb <- cbind(B.score.tb,as.matrix(t(exp.data)))
-        colData(obj)[[sprintf("%s.score",g.name)]] <- B.score.tb$B.score
+        rownames(exp.data) <- names(g.test)
+        Sig.Score.tb <- data.table(cell=colnames(obj),Sig.Score= colMeans(exp.data))
+        Sig.Score.tb <- cbind(Sig.Score.tb,as.matrix(t(exp.data)))
+        colData(obj)[[sprintf("%s.score",g.name)]] <- Sig.Score.tb$Sig.Score
         colData(obj)[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else if(class(obj)[1]=="Seurat"){
+        sigSize <- length(g.test)
+        g.test <- intersect(g.test,rownames(obj))
+        if(length(g.test) < sigSize){
+            warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test,collapse=",")))
+            return(obj)
+        }
         exp.data <- GetAssayData(obj,"data")[g.test,,drop=F]
-        B.score.tb <- data.table(cell=colnames(obj),B.score= colMeans(exp.data))
-        B.score.tb <- cbind(B.score.tb,as.matrix(t(exp.data)))
-        obj[[sprintf("%s.score",g.name)]] <- B.score.tb$B.score
+        Sig.Score.tb <- data.table(cell=colnames(obj),Sig.Score= Matrix::colMeans(exp.data))
+        Sig.Score.tb <- cbind(Sig.Score.tb,as.matrix(t(exp.data)))
+        obj[[sprintf("%s.score",g.name)]] <- Sig.Score.tb$Sig.Score
         obj[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else{
         return(obj)
     }
 
-    B.score.tb.melt <- melt(B.score.tb,id="cell")
-    colnames(B.score.tb.melt) <- c("cell","gene","norm_exprs")
+    Sig.Score.tb.melt <- melt(Sig.Score.tb,id="cell")
+    colnames(Sig.Score.tb.melt) <- c("cell","gene","norm_exprs")
 
     if(!file.exists(dirname(out.prefix))){
         dir.create(dirname(out.prefix),F,T)
     }
-    p <- ggplot(B.score.tb.melt, aes_string(x="norm_exprs", fill = "gene", colour = "gene")) +
+    p <- ggplot(Sig.Score.tb.melt, aes_string(x="norm_exprs", fill = "gene", colour = "gene")) +
 		    geom_density(alpha = 0.1) +
 		    geom_vline(xintercept = vis.v,linetype=2) +
-		    facet_wrap(~gene,ncol=2,scales="free_y")
-    ggsave(sprintf("%s.marker.%s.density.pdf",out.prefix,g.name),width=8,height=8)
+		    facet_wrap(~gene,ncol=2,scales="free_y") +
+            theme_pubr() +
+            theme(legend.position="none")
+    ggsave(sprintf("%s.marker.%s.density.pdf",out.prefix,g.name),
+           width=6,
+           height=2.5*round(0.5+length(g.test)/2))
     return(obj)
 }
 
