@@ -835,7 +835,7 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
         exp.data <- assay(obj,assay.name)[g.test,,drop=F]
         rownames(exp.data) <- names(g.test)
         Sig.Score.tb <- data.table(cell=colnames(obj),Sig.Score= colMeans(exp.data))
-        Sig.Score.tb <- cbind(Sig.Score.tb,as.matrix(t(exp.data)))
+        Sig.Score.tb <- cbind(Sig.Score.tb,t(as.matrix(exp.data)))
         colData(obj)[[sprintf("%s.score",g.name)]] <- Sig.Score.tb$Sig.Score
         colData(obj)[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else if(class(obj)[1]=="Seurat"){
@@ -846,8 +846,8 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
             return(obj)
         }
         exp.data <- GetAssayData(obj,"data")[g.test,,drop=F]
-        Sig.Score.tb <- data.table(cell=colnames(obj),Sig.Score= Matrix::colMeans(exp.data))
-        Sig.Score.tb <- cbind(Sig.Score.tb,as.matrix(t(exp.data)))
+        Sig.Score.tb <- data.table(cell=colnames(obj),Sig.Score= colMeans(exp.data))
+        Sig.Score.tb <- cbind(Sig.Score.tb,t(as.matrix(exp.data)))
         obj[[sprintf("%s.score",g.name)]] <- Sig.Score.tb$Sig.Score
         obj[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else{
