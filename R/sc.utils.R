@@ -820,16 +820,17 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
 #' @export
 fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
 			       g.name="plasmaB",g.test=c("CD79A", "JCHAIN", "SDC1"),
-			       score.t=1,vis.v=c(0.25,0.5,1))
+			       score.t=0.75,vis.v=c(0.25,0.5,0.75,1))
 {
     #require("ggplot2")
     #require("data.table")
     ##### plasma contamination
     if(class(obj)[1]=="SingleCellExperiment"){
         sigSize <- length(g.test)
+        g.test.i <- g.test
         g.test <- ssc.displayName2id(obj, display.name = g.test)
         if(length(g.test) < sigSize){
-            warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test,collapse=",")))
+            warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test.i,collapse=",")))
             return(obj)
         }
         exp.data <- assay(obj,assay.name)[g.test,,drop=F]
@@ -840,9 +841,10 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
         colData(obj)[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else if(class(obj)[1]=="Seurat"){
         sigSize <- length(g.test)
+        g.test.i <- g.test
         g.test <- intersect(g.test,rownames(obj))
         if(length(g.test) < sigSize){
-            warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test,collapse=",")))
+            warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test.i,collapse=",")))
             return(obj)
         }
         exp.data <- GetAssayData(obj,"data")[g.test,,drop=F]

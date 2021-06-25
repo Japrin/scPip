@@ -177,8 +177,9 @@ if(!is.null(opt.removeContamination)){
                                   score.t=sig.thre[i],
                                   vis.v=c(0.25,0.5,0.75,1))
     }
-    
-    f.cont.mtx <- seu[[]][,sprintf("%s.class",sig.name)]
+   
+    idx.sig.class <- intersect(sprintf("%s.class",sig.name),colnames(seu[[]]))
+    f.cont.mtx <- seu[[]][,idx.sig.class,drop=F]
     f.cont <- rowSums(f.cont.mtx) > 0
     loginfo(sprintf("A total number of potential contamination: %d\n",sum(f.cont)))
     print(colSums(f.cont.mtx==T))
