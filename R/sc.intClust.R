@@ -482,8 +482,20 @@ run.inte.metaClust <- function(exp.list.table,
                 }
                 if(!"cellID" %in% colnames(m.tb)) { m.tb$cellID <- colnames(sce.list[[i]]) }
                 if(!"libraryID" %in% colnames(m.tb)) { m.tb$libraryID <- "LXX"  }
-                if(!"cancerType" %in% colnames(m.tb)) { m.tb$cancerType <- "UNKNOWN"  }
-                if(!"loc" %in% colnames(m.tb)) { m.tb$loc <- "T"  }
+                if(!"cancerType" %in% colnames(m.tb)) {
+                    if("Disease" %in% colnames(m.tb)){
+                        m.tb$cancerType <- m.tb$Disease
+                    }else{
+                        m.tb$cancerType <- "UNKNOWN"
+                    }
+                }
+                if(!"loc" %in% colnames(m.tb)) {
+                    if("Tissue" %in% colnames(m.tb)){
+                        m.tb$loc <- m.tb$Tissue
+                    }else{
+                        m.tb$loc <- "T"
+                    }
+                }
                 if(!"batchV" %in% colnames(m.tb)) { m.tb$batchV <- m.tb$patient  }
                 if(!"TCR" %in% colnames(m.tb)) { m.tb$TCR <- ""  }
                 o.tb <- m.tb[,c("patient","cellID","libraryID","cancerType","loc",
