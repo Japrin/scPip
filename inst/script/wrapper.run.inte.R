@@ -8,6 +8,7 @@ suppressPackageStartupMessages(library("tictoc"))
 parser <- ArgumentParser()
 parser$add_argument("-i", "--inFile", type="character", required=TRUE, help="input files list")
 parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="outPrefix")
+parser$add_argument("-n", "--ncores", type="integer", default=12, help="number of CPUs to use [default %(default)s]")
 parser$add_argument("-j", "--corVar", type="character", default="S.Score,G2M.Score,DIG.Score1",
 		    help="subset of S.Score,G2M.Score,DIG.Score1,ISG.Score1,score.MALAT1 [default %(default)s]")
 parser$add_argument("-f", "--excludeCells", type="character",
@@ -23,6 +24,7 @@ out.prefix <- args$outPrefix
 #gene.file <- args$geneFile
 opt.cor.var <- unlist(strsplit(args$corVar,",",perl=T))
 opt.excludeCells.file <- args$excludeCells
+opt.ncores <- args$ncores
 
 dir.create(dirname(out.prefix),F,T)
 saveRDS(args,file=sprintf("%s.args.rds",out.prefix))
@@ -62,7 +64,7 @@ ret.list <- run.inte.metaClust(exp.list.table, out.prefix, gene.exclude.file,
 			       #cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T,cor.ISG=T,
 			       cor.var=opt.cor.var,
 			       contamination.vec=contamination.vec,
-			       ncores=12,npc=15,res.hi=50,TH.gene.occ=0.85)
+			       ncores=opt.ncores,npc=15,res.hi=50,TH.gene.occ=0.85)
 toc()
 
 seu.merged <- ret.list[["seu.merged"]]

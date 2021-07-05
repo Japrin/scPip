@@ -22,21 +22,21 @@
 #' @export
 run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 {
-    seu <- FindVariableFeatures(object = seu)
+    seu <- FindVariableFeatures(object = seu,assay="RNA")
     if(measurement=="TPM"){
-	#### TPM
-	hvg.gene.info <- seu@assays$RNA@meta.features %>% 
-		tibble::rownames_to_column(var="geneSymbol") %>%
-		arrange(-vst.variance)
+        #### TPM
+        hvg.gene.info <- seu@assays$RNA@meta.features %>% 
+            tibble::rownames_to_column(var="geneSymbol") %>%
+            arrange(-vst.variance)
     }else{
-	#### counts, cpm
-	hvg.gene.info <- seu@assays$RNA@meta.features %>% 
-		tibble::rownames_to_column(var="geneSymbol") %>%
-		arrange((-vst.variance.standardized))
+        #### counts, cpm
+        hvg.gene.info <- seu@assays$RNA@meta.features %>% 
+            tibble::rownames_to_column(var="geneSymbol") %>%
+            arrange((-vst.variance.standardized))
     }
     f.hvg <- !(hvg.gene.info$geneSymbol %in% gene.exclude.df[["seu.id"]]) &
-	!(grepl("^RP[LS]",hvg.gene.info$geneSymbol,perl=T)) &
-	!(hvg.gene.info$geneSymbol %in% c("MALAT1","MALAT1-ENSG00000251562",
+        !(grepl("^RP[LS]",hvg.gene.info$geneSymbol,perl=T)) &
+        !(hvg.gene.info$geneSymbol %in% c("MALAT1","MALAT1-ENSG00000251562",
 					  "MALAT1-ENSG00000279576","MALAT1-ENSG00000278217"))
     hvg.gene.info.flt <- hvg.gene.info[f.hvg,]
     if(measurement=="TPM"){
@@ -118,20 +118,22 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     ###
     if(is.null(seu) && !is.null(sce)){
         if("counts" %in% assayNames(sce)){
-        exp.mat <- assay(sce,"counts")
-        rownames(exp.mat) <- rowData(sce)[["seu.id"]]
-        seu <- CreateSeuratObject(exp.mat, min.cells = 0, min.features = 0,
-                  meta.data = as.data.frame(colData(sce)), project = aid)
-        exp.mat <- assay(sce,assay.name)
-        rownames(exp.mat) <- rowData(sce)[["seu.id"]]
-        seu <- SetAssayData(seu, assay = "RNA", slot = 'data',new.data = exp.mat)
-        rm(exp.mat)
+            exp.mat <- assay(sce,"counts")
+            rownames(exp.mat) <- rowData(sce)[["seu.id"]]
+            seu <- CreateSeuratObject(exp.mat, min.cells = 0, min.features = 0,
+                      meta.data = as.data.frame(colData(sce)), project = aid)
+            exp.mat <- assay(sce,assay.name)
+            rownames(exp.mat) <- rowData(sce)[["seu.id"]]
+            seu <- SetAssayData(seu, assay = "RNA", slot = 'data',new.data = exp.mat)
+            rm(exp.mat)
         }else{
-        ### norm_exprs, i.e. log2(x+1), expected
-        exp.mat <- assay(sce,assay.name)
-        rownames(exp.mat) <- rowData(sce)[["seu.id"]]
-        seu <- CreateSeuratObject(exp.mat, min.cells = 0, min.features = 0,
-                  meta.data = as.data.frame(colData(sce)), project = aid)
+            ### norm_exprs, i.e. log2(x+1), expected
+            exp.mat <- assay(sce,assay.name)
+            rownames(exp.mat) <- rowData(sce)[["seu.id"]]
+            seu <- CreateSeuratObject(exp.mat, min.cells = 0, min.features = 0,
+                      meta.data = as.data.frame(colData(sce)), project = aid)
+            ## both the "counts" and "data" slots are the same as exp.mat
+            ## nothing to do
         }
     }
 
@@ -142,30 +144,57 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     }
 
     if(is.null(sce) && !is.null(seu)){
-	exp.mat <- GetAssayData(seu, slot = "counts")
-	exp.mat[1:4,1:5]
-	rownames(exp.mat) <- gene.mapping.table$geneID[match(rownames(exp.mat),
-							     gene.mapping.table$seu.id)]
-	sce <- ssc.build(exp.mat,assay.name="counts")
-	rowData(sce)$geneID <- rownames(sce)
-	rowData(sce)$display.name <- gene.mapping.table[match(rownames(sce),
-							      gene.mapping.table$geneID)
-							][["display.name"]]
-	names(rowData(sce)$display.name) <- rownames(sce)
-	rowData(sce)$seu.id <- gene.mapping.table[match(rownames(sce),
-							gene.mapping.table$geneID)][["seu.id"]]
-	print(head(rowData(sce)))
+        exp.mat <- GetAssayData(seu, slot = "counts",assay="RNA")
+        if(ncol(exp.mat) > 0 && nrow(exp.mat) > 0)
+        {
+            rownames(exp.mat) <- gene.mapping.table$geneID[match(rownames(exp.mat),
+                                         gene.mapping.table$seu.id)]
+            sce <- ssc.build(exp.mat,assay.name="counts")
+            rowData(sce)$geneID <- rownames(sce)
+            rowData(sce)$display.name <- gene.mapping.table[match(rownames(sce),
+                                          gene.mapping.table$geneID)
+                                    ][["display.name"]]
+            names(rowData(sce)$display.name) <- rownames(sce)
+            rowData(sce)$seu.id <- gene.mapping.table[match(rownames(sce),
+                                    gene.mapping.table$geneID)][["seu.id"]]
+            print(head(rowData(sce)))
 
-	print(all(colnames(seu)==rownames(colData(sce))))
-	print(all(rownames(seu)==rowData(sce)$seu.id))
-	colData(sce) <- DataFrame(seu[[]])
-	exp.mat <- GetAssayData(seu, slot = "data")
-	rownames(exp.mat) <- gene.mapping.table[match(rownames(exp.mat),
-						      gene.mapping.table$seu.id)][["geneID"]]
-	assay(sce,"norm_exprs") <- exp.mat
-	#metadata(sce)$ssc[["variable.gene"]][["var.seurat"]] <- VariableFeatures(seu)
-	#reducedDim(sce,"seurat.pca") <- Embeddings(seu, reduction = "pca")
-	#reducedDim(sce,"seurat.umap") <- Embeddings(seu, reduction = "umap")
+            #print(all(colnames(seu)==rownames(colData(sce))))
+            #print(all(rownames(seu)==rowData(sce)$seu.id))
+            colData(sce) <- DataFrame(seu[[]])
+        }
+
+        exp.mat <- GetAssayData(seu, slot = "data",assay="RNA")
+        if(ncol(exp.mat) > 0 && nrow(exp.mat) > 0)
+        {
+            rownames(exp.mat) <- gene.mapping.table[match(rownames(exp.mat),
+                                      gene.mapping.table$seu.id)][["geneID"]]
+            if(!is.null(sce)){
+                assay(sce,"norm_exprs") <- exp.mat
+            }else{
+                sce <- ssc.build(exp.mat,assay.name="norm_exprs")
+                rowData(sce)$geneID <- rownames(sce)
+                rowData(sce)$display.name <- gene.mapping.table[match(rownames(sce),
+                                              gene.mapping.table$geneID)
+                                        ][["display.name"]]
+                names(rowData(sce)$display.name) <- rownames(sce)
+                rowData(sce)$seu.id <- gene.mapping.table[match(rownames(sce),
+                                        gene.mapping.table$geneID)][["seu.id"]]
+                print(head(rowData(sce)))
+
+                #print(all(colnames(seu)==rownames(colData(sce))))
+                #print(all(rownames(seu)==rowData(sce)$seu.id))
+                colData(sce) <- DataFrame(seu[[]])
+            }
+        }
+
+        if(is.null(sce)){
+            stop(sprintf("There are not counts or data slots in the RNA assay in the Seurat object!"))
+        }
+
+        #metadata(sce)$ssc[["variable.gene"]][["var.seurat"]] <- VariableFeatures(seu)
+        #reducedDim(sce,"seurat.pca") <- Embeddings(seu, reduction = "pca")
+        #reducedDim(sce,"seurat.umap") <- Embeddings(seu, reduction = "umap")
     }
 
     if(!all(colnames(sce)==colnames(seu))){
