@@ -483,8 +483,8 @@ run.inte.metaClust <- function(exp.list.table,
                 if(!"cellID" %in% colnames(m.tb)) { m.tb$cellID <- colnames(sce.list[[i]]) }
                 if(!"libraryID" %in% colnames(m.tb)) { m.tb$libraryID <- "LXX"  }
                 if(!"cancerType" %in% colnames(m.tb)) {
-                    if("Disease" %in% colnames(m.tb)){
-                        m.tb$cancerType <- m.tb$Disease
+                    if("DiseaseType" %in% colnames(m.tb)){
+                        m.tb$cancerType <- m.tb$DiseaseType
                     }else{
                         m.tb$cancerType <- "UNKNOWN"
                     }
