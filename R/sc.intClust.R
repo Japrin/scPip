@@ -231,7 +231,8 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
                                        k=if(ncol(seu.x)<500) 10 else 10,
                                        #k=if(ncol(seu.x)<500) 10 else 20,
                                        dims = 1:15,nn.eps=0,force.recalc=T)
-                res.hi <- if(ncol(seu.x)<500){ 25 } else res.hi
+                ####res.hi <- if(ncol(seu.x)<500){ 25 } else res.hi
+                res.hi <- if(ncol(seu.x) < 100) { 5 }else if(ncol(seu.x)<500){ 25 } else res.hi
                 seu.x <- FindClusters(seu.x,resolution =res.hi, algorithm=1,verbose=F)
 		    }
 
