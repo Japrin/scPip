@@ -41,7 +41,7 @@ dat.ext.dir <- system.file("extdata",package="scPip")
 script.dir <- system.file("script",package="scPip")
 report.template.file <- sprintf("%s/rna/report.template.sc.rmd",script.dir)
 
-ncores <- 12
+ncores <- opt.ncores
 gene.exclude.file <- sprintf("%s/exclude.gene.misc.misc.v3.RData",dat.ext.dir)
 
 options(stringsAsFactors = FALSE)

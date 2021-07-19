@@ -142,16 +142,20 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 			}
 		    }
 
-		
-		    score.MALAT1 <- assay(sce,"norm_exprs")[rowData(sce)[,"display.name"]=="MALAT1",]
+            score.MALAT1 <- NULL
+            if("MALAT1" %in% rowData(sce)$display.name){
+                score.MALAT1 <- assay(sce,"norm_exprs")[rowData(sce)[,"display.name"]=="MALAT1",]
+            }else{
+                cor.var <- setdiff(cor.var,"score.MALAT1")
+            }
 
-		    if(data.id %in% c("HCC.YaoHe10X","HCC.YaoHeSS2") ){
-                gene.MALAT1.vec <- c("MALAT1-ENSG00000251562")
-		    }else{
-                gene.MALAT1.vec <- c("MALAT1")
-		    }
-		    #seu <- AddModuleScore(seu, features=list("score.MALAT1"=gene.MALAT1.vec), name="score.MALAT1",
-		    #					  pool = NULL, nbin = 24, ctrl = 100)
+		    #if(data.id %in% c("HCC.YaoHe10X","HCC.YaoHeSS2") ){
+            #    gene.MALAT1.vec <- c("MALAT1-ENSG00000251562")
+		    #}else{
+            #    gene.MALAT1.vec <- c("MALAT1")
+		    #}
+		    ##seu <- AddModuleScore(seu, features=list("score.MALAT1"=gene.MALAT1.vec), name="score.MALAT1",
+		    ##					  pool = NULL, nbin = 24, ctrl = 100)
 
 		    sce <- NULL
 		    if(!is.null(contamination.vec)){
@@ -162,7 +166,9 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    seu.x <- CreateSeuratObject(dat.x,project="panC", meta.data=seu[[]][colnames(dat.x),])
 		    ### seu$score.MALAT11, two "1"
 		    #score.MALAT1 <- seu$score.MALAT11
-		    seu.x$score.MALAT1 <- score.MALAT1
+            if(!is.null(score.MALAT1)){
+		        seu.x$score.MALAT1 <- score.MALAT1
+            }
 		    seu <- NULL
 		    gc()
 		    ##### regression
