@@ -177,7 +177,7 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 									    G2M.Score=seu.x$G2M.Score,
 									    Phase=seu.x$Phase,
 									    DIG.Score1=seu.x$DIG.Score1,
-									    score.MALAT1=seu.x$score.MALAT1,
+									    score.MALAT1=score.MALAT1,
 									    ISG.Score1=seu.x$ISG.Score1,
 									    percent.mito=NA,
 									    stringsAsFactors=F)
