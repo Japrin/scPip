@@ -172,7 +172,7 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    seu <- NULL
 		    gc()
 		    ##### regression
-		    meta.extra.tb <- data.frame(cellID.uniq=sprintf("%s.%s",data.id,colnames(seu.x)),
+		    meta.extra.tb <- data.table(cellID.uniq=sprintf("%s.%s",data.id,colnames(seu.x)),
 									    S.Score=seu.x$S.Score,
 									    G2M.Score=seu.x$G2M.Score,
 									    Phase=seu.x$Phase,
@@ -529,7 +529,7 @@ run.inte.metaClust <- function(exp.list.table,
     print(dim(dat.merged.mtx))
     print(dat.merged.mtx[1:4,1:3])
 
-    meta.extra.tb <- ldply(dat.merged.list,function(x){ x[["meta.extra.tb"]]})
+    meta.extra.tb <- as.data.frame(ldply(dat.merged.list,function(x){ x[["meta.extra.tb"]]}))
     rownames(meta.extra.tb) <- meta.extra.tb$cellID.uniq
     f.cell <- intersect(rownames(meta.tb),rownames(meta.extra.tb))
     meta.tb <- cbind(meta.tb[f.cell,],meta.extra.tb[f.cell,])
