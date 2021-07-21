@@ -42,20 +42,23 @@ HVG.From.GeneRankTb <- function(gene.rank.tb,n.common=1000,n.specific=1000,th.ra
     ###
     f.common <- gene.rank.tb[rank <= n.common,][["geneID"]]
     gene.rank.tail.mat <- gene.rank.mat[!(rownames(gene.rank.mat) %in% f.common),]
-    f.specific.tb <- as.data.table(ldply(seq_len(nrow(gene.rank.tail.mat)),function(i){
-			    x <- gene.rank.tail.mat[i,]	
-			    ff <- x < th.rank
-			    nSpe <- sum(ff)
-			    out.tb <- data.table(geneID=rownames(gene.rank.tail.mat)[i],
-                                     nDataSets=nSpe,
-                                     fDataSets=nSpe/length(x),
-                                     medianRankSpeGene=if(nSpe > 0) median(x[ff]) else 1)
-			    out.tb[,hasSpeGene:= (nSpe>=3 & fDataSets > 0.1) ]
-					}))
-    f.specific.tb <- f.specific.tb[hasSpeGene==T,][order(medianRankSpeGene),]
-    f.specific.tb[,rank:=seq_len(nrow(f.specific.tb))]
-    #print(f.specific.tb[geneID %in% c("IL17A","IL17F","IL23R","RORC","IL26","IL22","IL21","CD4","CD8A","CD8B"),])
-    f.specific <- f.specific.tb[rank <= n.specific,][["geneID"]]
+    f.specific <- NULL
+    if(nrow(gene.rank.tail.mat) > 0){
+        f.specific.tb <- as.data.table(ldply(seq_len(nrow(gene.rank.tail.mat)),function(i){
+                    x <- gene.rank.tail.mat[i,]
+                    ff <- x < th.rank
+                    nSpe <- sum(ff)
+                    out.tb <- data.table(geneID=rownames(gene.rank.tail.mat)[i],
+                                         nDataSets=nSpe,
+                                         fDataSets=nSpe/length(x),
+                                         medianRankSpeGene=if(nSpe > 0) median(x[ff]) else 1)
+                    out.tb[,hasSpeGene:= (nSpe>=3 & fDataSets > 0.1) ]
+                        }))
+        f.specific.tb <- f.specific.tb[hasSpeGene==T,][order(medianRankSpeGene),]
+        f.specific.tb[,rank:=seq_len(nrow(f.specific.tb))]
+        #print(f.specific.tb[geneID %in% c("IL17A","IL17F","IL23R","RORC","IL26","IL22","IL21","CD4","CD8A","CD8B"),])
+        f.specific <- f.specific.tb[rank <= n.specific,][["geneID"]]
+    }
 
     ####
 #    sscVis:::plotMatrix.simple(gene.rank.tail.mat[f.specific,],
