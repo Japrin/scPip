@@ -525,6 +525,9 @@ run.inte.metaClust <- function(exp.list.table,
                           ncores=ncores,
 					      contamination.vec=contamination.vec)
     loginfo("end merge data.")
+    loginfo(sprintf("A total of %d datasets are combined while the number of input datasets is %d.",
+                    length(dat.merged.list),
+                    length(sce.list)))
     
     dat.merged.mtx <- do.call(cbind,llply(dat.merged.list,function(x){ x[["dat.avg"]] }))
     rownames(dat.merged.mtx) <- gsub("_","-",rownames(dat.merged.mtx))
