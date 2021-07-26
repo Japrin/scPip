@@ -407,7 +407,8 @@ run.inte.metaClust <- function(exp.list.table,
 	gene.occ <- gene.occ/length(sce.list)
 	gene.occ <- sort(gene.occ,decreasing=T)
 	gene.common <- names(gene.occ)[gene.occ >= TH.gene.occ]
-	gene.common.all <- names(gene.occ)[gene.occ >= 0.85]
+	gene.common.all <- gene.common
+	###gene.common.all <- names(gene.occ)[gene.occ >= 0.85]
 	loginfo(sprintf("total %d common genes obtained.",length(gene.common)))
 
 	l_ply(names(sce.list),function(x){
