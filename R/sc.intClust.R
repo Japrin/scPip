@@ -165,6 +165,7 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
                 f.cell.cont <- sprintf("%s.%s",data.id,colnames(dat.x)) %in% contamination.vec
                 loginfo(sprintf("Number of contaminated cells (%s): %d.",data.id,sum(f.cell.cont)))
                 dat.x <- dat.x[,!f.cell.cont]
+                score.MALAT1 <- score.MALAT1[colnames(dat.x)]
 		    }
 		    seu.x <- CreateSeuratObject(dat.x,project="panC", meta.data=seu[[]][colnames(dat.x),])
 		    ### seu$score.MALAT11, two "1"
