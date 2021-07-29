@@ -703,12 +703,12 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             id.d <- de.limma.tb$data.id[i]
             dfile <- de.limma.tb$dfile[i]
             de.out <- readRDS(dfile)
-            gene.de.list[[id.d]] <- de.out$all
+            gene.de.list[[id.d]] <- de.out
             gene.de.list[[id.d]]$geneID <- gene.de.list[[id.d]]$geneSymbol
         }
 
         if(is.null(gene.used)){
-            gene.occ <- table(unlist(sapply(gene.de.list,function(x){ unique(x$geneSymbol) })))
+            gene.occ <- table(unlist(sapply(gene.de.list,function(x){ unique(x$all$geneSymbol) })))
             gene.occ <- gene.occ/length(gene.de.list)
             gene.occ <- sort(gene.occ,decreasing=T)
             gene.common <- names(gene.occ)[gene.occ >= TH.gene.occ]
