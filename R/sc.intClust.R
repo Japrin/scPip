@@ -704,7 +704,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             dfile <- de.limma.tb$dfile[i]
             de.out <- readRDS(dfile)
             gene.de.list[[id.d]] <- de.out
-            gene.de.list[[id.d]]$all$geneID <- gene.de.list[[id.d]]$all$geneSymbol
+            #gene.de.list[[id.d]]$all$geneID <- gene.de.list[[id.d]]$all$geneSymbol
         }
 
         if(is.null(gene.used)){
@@ -845,7 +845,11 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 	    cat(sprintf("%s, %d genes\n",aid,length(unique(gene.de.list[[aid]]$all$geneID))))
     })
 
-    .tmp.gene.de.list <- llply(names(gene.de.list),function(x){ gene.de.list[[x]]$all })
+    .tmp.gene.de.list <- llply(names(gene.de.list),function(x){
+                                   dat.ret <- gene.de.list[[x]]$all
+                                   dat.ret$geneID <- dat.ret$geneSymbol
+                                   return(dat.ret)
+                                })
     names(.tmp.gene.de.list) <- names(gene.de.list)
 
     #####################################
