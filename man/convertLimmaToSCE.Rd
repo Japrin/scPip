@@ -12,6 +12,7 @@ convertLimmaToSCE(
   min.ncellsStudy = 200,
   gset.list = NULL,
   direct.sig = T,
+  TH.gene.occ = 1,
   de.mode = "multiAsTwo",
   column.exp = "meanScale",
   gene.used = NULL,
@@ -32,6 +33,8 @@ convertLimmaToSCE(
 \item{gset.list}{list; list containing gene sets. (default: NULL)}
 
 \item{direct.sig}{logical; if TRUE, genes exibit significance in all datasets will be assigned "sig" directly, irrespective of combined ES and combined adjusted p vlaue. (default: TRUE)}
+
+\item{TH.gene.occ}{double; range from 0 to 1. genes present in >= TH.gene.occ datasets are used. (default: 1)}
 
 \item{de.mode}{character; mode of differential expression analysis. (default: "multiAsTwo")}
 

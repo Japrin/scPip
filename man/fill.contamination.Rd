@@ -10,8 +10,8 @@ fill.contamination(
   assay.name = "norm_exprs",
   g.name = "plasmaB",
   g.test = c("CD79A", "JCHAIN", "SDC1"),
-  score.t = 1,
-  vis.v = c(0.25, 0.5, 1)
+  score.t = 0.75,
+  vis.v = c(0.25, 0.5, 0.75, 1)
 )
 }
 \arguments{

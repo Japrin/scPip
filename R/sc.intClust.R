@@ -673,6 +673,7 @@ run.inte.metaClust <- function(exp.list.table,
 #' @param min.ncellsStudy integer; only datasets with number of cells > min.ncellsStudy are used. (default: 200)
 #' @param gset.list list; list containing gene sets. (default: NULL)
 #' @param direct.sig logical; if TRUE, genes exibit significance in all datasets will be assigned "sig" directly, irrespective of combined ES and combined adjusted p vlaue. (default: TRUE)
+#' @param TH.gene.occ double; range from 0 to 1. genes present in >= TH.gene.occ datasets are used. (default: 1)
 #' @param de.mode character; mode of differential expression analysis. (default: "multiAsTwo")
 #' @param column.exp character; convert the column of limma result to assay data. (default: "meanScale")
 #' @param gene.used character; only keep genes in gene.used. (default: NULL)
@@ -683,7 +684,7 @@ run.inte.metaClust <- function(exp.list.table,
 convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 				    min.ncells=30,min.ncellsStudy=200,
 				    gset.list=NULL,
-                    direct.sig=T,
+                    direct.sig=T,TH.gene.occ=1,
 				    de.mode="multiAsTwo",column.exp="meanScale",
 				    gene.used=NULL,colSet=list())
 {
@@ -696,11 +697,31 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
         sce.list <- list()
         gene.common <- c()
         gene.de.list <- list()
+
         for(i in seq_len(nrow(de.limma.tb)))
         {
             id.d <- de.limma.tb$data.id[i]
             dfile <- de.limma.tb$dfile[i]
             de.out <- readRDS(dfile)
+            gene.de.list[[id.d]] <- de.out$all
+            gene.de.list[[id.d]]$geneID <- gene.de.list[[id.d]]$geneSymbol
+        }
+
+        if(is.null(gene.used)){
+            gene.occ <- table(unlist(sapply(gene.de.list,function(x){ unique(x$geneSymbol) })))
+            gene.occ <- gene.occ/length(gene.de.list)
+            gene.occ <- sort(gene.occ,decreasing=T)
+            gene.common <- names(gene.occ)[gene.occ >= TH.gene.occ]
+            loginfo(sprintf("total %d common genes obtained, with TH.gene.occ==%s.",length(gene.common),TH.gene.occ))
+            gene.used <- gene.common
+        }
+
+        for(i in seq_len(nrow(de.limma.tb)))
+        {
+            id.d <- de.limma.tb$data.id[i]
+            #dfile <- de.limma.tb$dfile[i]
+            #de.out <- readRDS(dfile)
+            de.out <- gene.de.list[[id.d]]
             #### number of cells in each ClusterID
             #de.out$all[1:2,]
             ncells.control.vec <- NULL
@@ -750,13 +771,8 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
                             },.parallel=T))
 
             #### information from de.out$all
-            gene.de.list[[id.d]] <- de.out$all
-            gene.de.list[[id.d]]$geneID <- gene.de.list[[id.d]]$geneSymbol
-            #if("SNR" %in% colnames(de.out$all)){
-            #	mnames <- c("logFC","t","P.Value","adj.P.Val","meanExp","meanScale","SNR")
-            #}else{
-            #	mnames <- c("logFC","t","P.Value","adj.P.Val","meanExp","meanScale")
-            #}
+            ###gene.de.list[[id.d]] <- de.out$all
+            ###gene.de.list[[id.d]]$geneID <- gene.de.list[[id.d]]$geneSymbol
             mnames <- c("logFC","t","P.Value","adj.P.Val","meanExp","meanScale","freq._case","freq._control",
                         "OR","OR.p.value","OR.adj.pvalue")
 
@@ -807,13 +823,14 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 
             ################
             sce.list[[id.d]] <- sce.obj
-            if(length(gene.common)==0)
-                ##gene.common <- rownames(sce.list[[id.d]])
-                gene.common <- rowData(sce.list[[id.d]])$display.name
-            else
-                gene.common <- intersect(gene.common,rowData(sce.list[[id.d]])$display.name)
             cat(sprintf("%d, %s\n",i,de.limma.tb$data.id[i]))
+            ####if(length(gene.common)==0)
+            ####    ##gene.common <- rownames(sce.list[[id.d]])
+            ####    gene.common <- rowData(sce.list[[id.d]])$display.name
+            ####else
+            ####    gene.common <- intersect(gene.common,rowData(sce.list[[id.d]])$display.name)
         }
+
     }
 
     #### check
