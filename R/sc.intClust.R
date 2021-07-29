@@ -704,7 +704,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             dfile <- de.limma.tb$dfile[i]
             de.out <- readRDS(dfile)
             gene.de.list[[id.d]] <- de.out
-            gene.de.list[[id.d]]$geneID <- gene.de.list[[id.d]]$geneSymbol
+            gene.de.list[[id.d]]$all$geneID <- gene.de.list[[id.d]]$all$geneSymbol
         }
 
         if(is.null(gene.used)){
@@ -842,13 +842,16 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
     })
 
     l_ply(names(gene.de.list),function(aid){
-	    cat(sprintf("%s, %d genes\n",aid,length(unique(gene.de.list[[aid]]$geneID))))
+	    cat(sprintf("%s, %d genes\n",aid,length(unique(gene.de.list[[aid]]$all$geneID))))
     })
+
+    .tmp.gene.de.list <- llply(names(gene.de.list),function(x){ gene.de.list[[x]]$all })
+    names(.tmp.gene.de.list) <- names(gene.de.list)
 
     #####################################
     sce.pb <- integrate.by.avg(sce.list,sprintf("%s",out.prefix),
 				     assay.name=column.exp, is.avg=T,n.downsample=NULL,
-				     ncores=ncores,gene.de.list=gene.de.list, de.thres=1000,
+				     ncores=ncores,gene.de.list=.tmp.gene.de.list, de.thres=1000,
 				     do.clustering=F,
 				     avg.by="ClusterID")
     #sce.debug <<- sce.pb
