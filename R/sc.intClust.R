@@ -1147,7 +1147,8 @@ make.geneTableLong <- function(obj,out.prefix,th.adj.P=0.01,th.dprime=0.15)
         dat.long <- ssc.toLongTable(obj[,obj$meta.cluster==x],gene.id=NULL,
                         assay.name=c("meanExp","meanScale","logFC",
                              "zp","dprime","vardprime",
-                             "P.Value","adj.P.Val","sig","freq._case"),
+                             "P.Value","adj.P.Val","sig","freq._case",
+                             "OR","OR.adj.pvalue"),
                         col.idx=colnames(colData(obj)))
         dat.collapse <- collapseEffectSizeLong(dat.long,mode.collapse="comb",
                                    group.2nd="cancerType",

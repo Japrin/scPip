@@ -24,6 +24,7 @@ dir.create(dirname(out.prefix),F,T)
 library("scPip")
 library("data.table")
 library("tictoc")
+library("sscVis")
 
 RhpcBLASctl::omp_set_num_threads(1)
 doParallel::registerDoParallel(cores = opt.ncores)
@@ -32,16 +33,22 @@ options(stringsAsFactors = FALSE)
 ######################
 de.limma.tb <- fread(in.file)
 
-tic("convertLimmaToSCE")
-sce.pb <- convertLimmaToSCE(de.limma.tb,out.prefix,ncores=8,
-				    min.ncells=30,min.ncellsStudy=200,
-				    gset.list=NULL,
-				    de.mode="multiAsTwo",column.exp="meanScale",
-                    TH.gene.occ=opt.gene.occ,
-				    gene.used=NULL,colSet=list())
+sce.pb.file <- sprintf("%s.sce.pb.rds",out.prefix)
+if(file.exists(sce.pb.file)){
+    loginfo(sprintf("load sce.pb file..."))
+    sce.pb <- readRDS(sce.pb.file)
+}else{
+    tic("convertLimmaToSCE")
+    sce.pb <- convertLimmaToSCE(de.limma.tb,out.prefix,ncores=8,
+                        min.ncells=30,min.ncellsStudy=200,
+                        gset.list=NULL,
+                        de.mode="multiAsTwo",column.exp="meanScale",
+                        TH.gene.occ=opt.gene.occ,
+                        gene.used=NULL,colSet=list())
+    toc()
+}
+
+tic("make.geneTableLong()")
+make.geneTableLong(sce.pb,out.prefix,th.adj.P=0.01,th.dprime=0.15)
 toc()
-
-
-#saveRDS(de.out,file=sprintf("%s.de.out.rda",out.prefix))
-
 
