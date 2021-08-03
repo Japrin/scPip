@@ -176,7 +176,7 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    seu <- NULL
 		    gc()
 		    ##### regression
-		    meta.extra.tb <- data.table(cellID.uniq=sprintf("%s.%s",data.id,colnames(seu.x)),
+		    meta.extra.tb <- data.table(cellID.uniq=sprintf("%s.%s",data.id, if(!"cellID" %in% colnames(seu.x[[]])) colnames(seu.x) else unname(seu.x$cellID)),
 									    S.Score=seu.x$S.Score,
 									    G2M.Score=seu.x$G2M.Score,
 									    Phase=seu.x$Phase,
