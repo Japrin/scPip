@@ -176,7 +176,9 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 		    seu <- NULL
 		    gc()
 		    ##### regression
-		    meta.extra.tb <- data.table(cellID.uniq=sprintf("%s.%s",data.id, if(!"cellID" %in% colnames(seu.x[[]])) colnames(seu.x) else unname(seu.x$cellID)),
+            #.tmp.cellID <- if(!"cellID" %in% colnames(seu.x[[]])) colnames(seu.x) else unname(seu.x$cellID)
+            .tmp.cellID <- colnames(seu.x)
+		    meta.extra.tb <- data.table(cellID.uniq=sprintf("%s.%s",data.id,.tmp.cellID),
 									    S.Score=seu.x$S.Score,
 									    G2M.Score=seu.x$G2M.Score,
 									    Phase=seu.x$Phase,
@@ -492,7 +494,8 @@ run.inte.metaClust <- function(exp.list.table,
                         m.tb$patient <- "PXX"
                     }
                 }
-                if(!"cellID" %in% colnames(m.tb)) { m.tb$cellID <- colnames(sce.list[[i]]) }
+                ##if(!"cellID" %in% colnames(m.tb)) { m.tb$cellID <- colnames(sce.list[[i]]) }
+                { m.tb$cellID <- colnames(sce.list[[i]]) }
                 if(!"libraryID" %in% colnames(m.tb)) { m.tb$libraryID <- "LXX"  }
                 if(!"cancerType" %in% colnames(m.tb)) {
                     if("DiseaseType" %in% colnames(m.tb)){
