@@ -276,9 +276,11 @@ mergeDataFromFileTable <- function(exp.list.table,gene.de.common,seu.list,sce.li
 #' @param group.vec character; cell id to mini-cluster mapping vector
 #' @param ncores integer; number of CPU cores to use
 #' @param contamination.vec character vector; cells to be excluded. (default: NULL)
+#' @param block.size integer; block size. To process large matrix, each time a block of [INT] genes is processed (default: 1500)
 #' @return a list, each component of which is expression matrix of gene.common by min-clusters
 #' @details For each dataset, the function first identify mini-clusters, then calculate the average expressions of mini-clusters.
-mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.vec,ncores=6,contamination.vec=NULL)
+mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.vec,ncores=6,
+                                      contamination.vec=NULL,block.size=1500)
 {
     ret.list <- llply(seq_len(nrow(exp.list.table)),function(i){
                     data.id <- exp.list.table$data.id[i]
@@ -304,7 +306,7 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
                     if(!"batchV" %in% colnames(colData(sce))) { sce$batchV <- sce$patient  }
                     #########################
                     sce <- ssc.scale(sce,gene.symbol=gene.common,assay.name="norm_exprs",
-                                     adjB="batchV",do.scale=T)
+                                     adjB="batchV",do.scale=T,block.size=block.size)
                     dat.avg <- ssc.average.cell(sce,"norm_exprs.scale",
                                     column="miniCluster",ret.type="data.mtx")
                     rownames(dat.avg) <- rowData(sce)$display.name

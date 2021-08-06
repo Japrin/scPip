@@ -10,7 +10,8 @@ mergeSCEDataFromFileTable(
   sce.list,
   group.vec,
   ncores = 6,
-  contamination.vec = NULL
+  contamination.vec = NULL,
+  block.size = 1500
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ mergeSCEDataFromFileTable(
 \item{ncores}{integer; number of CPU cores to use}
 
 \item{contamination.vec}{character vector; cells to be excluded. (default: NULL)}
+
+\item{block.size}{integer; block size. To process large matrix, each time a block of [INT] genes is processed (default: 1500)}
 }
 \value{
 a list, each component of which is expression matrix of gene.common by min-clusters
