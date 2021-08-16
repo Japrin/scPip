@@ -170,9 +170,9 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
             rownames(exp.mat) <- gene.mapping.table[match(rownames(exp.mat),
                                       gene.mapping.table$seu.id)][["geneID"]]
             if(!is.null(sce)){
-                assay(sce,"norm_exprs") <- exp.mat
+                assay(sce,assay.name) <- exp.mat
             }else{
-                sce <- ssc.build(exp.mat,assay.name="norm_exprs")
+                sce <- ssc.build(exp.mat,assay.name=assay.name)
                 rowData(sce)$geneID <- rownames(sce)
                 rowData(sce)$display.name <- gene.mapping.table[match(rownames(sce),
                                               gene.mapping.table$geneID)
