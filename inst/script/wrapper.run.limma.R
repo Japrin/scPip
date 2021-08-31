@@ -14,6 +14,7 @@ parser$add_argument("-c", "--stype", type="character", help="only analyze stype 
 parser$add_argument("-a", "--group", type="character",default="ClusterID", help="group var (default ClusterID)")
 parser$add_argument("-d", "--groupMode", type="character",default="multi", help="group mode (default multi)")
 parser$add_argument("-q", "--filter", type="character",help="comma(,) seperated group list (default: don't apply filter)")
+parser$add_argument("-k", "--keep", type="character",help="format COLUMN:KEEP_VAL1,KEEP_VAL2,... (default: don't apply keeper)")
 ###parser$add_argument("-a", "--aFile", type="character", required=TRUE, help="input seu file list")
 ####parser$add_argument("-s", "--sample", type="character", default="SAMPLE", help="sample id")
 ####parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
@@ -39,6 +40,7 @@ opt.platform <- args$platform
 opt.group <- args$group
 opt.mode <- args$groupMode
 opt.filter <- args$filter
+opt.keep <- args$keep
 
 #gene.exclude.file <- "/lustre1/zeminz_pkuhpc/zhenglt/work/panC/data/geneSet/exclude/exclude.gene.misc.misc.RData"
 
@@ -101,6 +103,19 @@ if(!is.null(opt.filter)){
 	#group.levels <- setdiff(levels(sce[[opt.group]]),filter.group)
 	#sce[[opt.group]] <- factor(as.character(sce[[opt.group]]),levels=group.levels)
 }
+
+if(!is.null(opt.filter)){
+	opt.keep.vec <- unlist(strsplit(opt.keep,":",perl=T))
+    keep.col <- opt.keep.vec[1]
+    keep.val <- opt.keep.vec[2]
+	keep.val.vec <- unlist(strsplit(keep.val,",",perl=T))
+	cat(sprintf("keep %s belong to one of:\n",keep.col))
+	print(keep.val.vec)
+	sce <- sce[,(sce[[keep.col]] %in% keep.val.vec)]
+	#group.levels <- setdiff(levels(sce[[opt.group]]),filter.group)
+	#sce[[opt.group]] <- factor(as.character(sce[[opt.group]]),levels=group.levels)
+}
+
 
 tic("run limma")
 
