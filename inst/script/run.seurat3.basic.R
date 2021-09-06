@@ -125,6 +125,17 @@ if(!is.null(seu) && "percent.mito" %in% colnames(seu[[]])){
 	}
 }
 
+##### check & clean sce #####
+if("percent.mito" %in% colnames(colData(sce))){
+    if(all(is.na(sce$percent.mito))){
+        sce$percent.mito <- NULL
+    }
+}
+
+if(!("seu.id" %in% colnames(rowData(sce)))){
+    rowData(sce)[["seu.id"]] <- gsub("_","-",rowData(sce)[["display.name"]])
+}
+
 if(!is.null(seu) && !is.null(opt.filterout)){
 	if(!file.exists(opt.filterout)){
 		col.filter <- unlist(strsplit(opt.filterout,":"))[1]
