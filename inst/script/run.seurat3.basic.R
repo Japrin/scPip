@@ -136,6 +136,12 @@ if(!("seu.id" %in% colnames(rowData(sce)))){
     rowData(sce)[["seu.id"]] <- gsub("_","-",rowData(sce)[["display.name"]])
 }
 
+if(("libraryID" %in% colnames(colData(sce))) && all(is.na(sce$libraryID))){
+    sce$libraryID <- "Unk"
+}
+
+
+
 if(!is.null(seu) && !is.null(opt.filterout)){
 	if(!file.exists(opt.filterout)){
 		col.filter <- unlist(strsplit(opt.filterout,":"))[1]
