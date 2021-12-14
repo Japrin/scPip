@@ -17,7 +17,8 @@ run.inte.metaClust(
   method.clustering = "louvain",
   cor.var = c("S.Score", "G2M.Score", "DIG.Score1"),
   use.harmony = F,
-  contamination.vec = NULL
+  contamination.vec = NULL,
+  gene.informative.file = NULL
 )
 }
 \arguments{
@@ -46,6 +47,8 @@ run.inte.metaClust(
 \item{use.harmony}{logical; use harmony to correct for batch effect (batches are defined in column batchV). (default: FALSE)}
 
 \item{contamination.vec}{character vector; cells to be excluded. (default: NULL)}
+
+\item{gene.informative.file}{character; file contains informative genes which are to be used for integration. column geneSymbol is required. (default: NULL)}
 }
 \value{
 a list containing 3 components: sce.merged, seu.merged and meta.tb

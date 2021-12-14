@@ -334,7 +334,7 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
 #' @importFrom Seurat CreateSeuratObject SetAssayData RunPCA RunUMAP RunTSNE FindNeighbors FindClusters  Embeddings
 #' @importFrom sscVis loginfo ssc.build
 #' @importFrom harmony RunHarmony
-#' @importFrom data.table as.data.table dcast
+#' @importFrom data.table as.data.table dcast fread
 #' @importFrom matrixStats rowMedians
 #' @importFrom plyr llply ldply
 #' @importFrom R.utils loadToEnv
@@ -356,6 +356,7 @@ mergeSCEDataFromFileTable <- function(exp.list.table,gene.common,sce.list,group.
 #' @param cor.var character vector; subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","score.MALAT1")
 #' @param use.harmony logical; use harmony to correct for batch effect (batches are defined in column batchV). (default: FALSE)
 #' @param contamination.vec character vector; cells to be excluded. (default: NULL)
+#' @param gene.informative.file character; file contains informative genes which are to be used for integration. column geneSymbol is required. (default: NULL)
 #' @return a list containing 3 components: sce.merged, seu.merged and meta.tb
 #' @details For each dataset, the function first identify mini-clusters, then calculate the average expressions of mini-clusters. The gene by mini-cluster expression data will pass the pipeline: PCA, harmony, UMAP/Clustering.
 #' @export
@@ -368,7 +369,7 @@ run.inte.metaClust <- function(exp.list.table,
 			       #cor.cellCycle=T,cor.MALAT1=F,cor.DIG=T,cor.ISG=F,
 			       cor.var=c("S.Score","G2M.Score","DIG.Score1"),
                    use.harmony=F,
-			       contamination.vec=NULL)
+			       contamination.vec=NULL,gene.informative.file=NULL)
 {
     RhpcBLASctl::omp_set_num_threads(1)
     doParallel::registerDoParallel(cores = ncores)
@@ -459,14 +460,12 @@ run.inte.metaClust <- function(exp.list.table,
 		    row.names=F,sep="\t",quote=F)
 	gene.de.common <- gene.de.common.tmp.tb$geneID
 
-#	    gene.de.common.tmp.tb <- HVG.From.GeneRankTb(gene.rank.tb[!f.gene.blackList,],
-#						  ##n.common=1500,n.specific=0,th.rank=0.1)
-#						  ##n.common=750,n.specific=750,th.rank=0.1)
-#						  n.common=1000,n.specific=1000,th.rank=0.1)
-#	    write.table(gene.de.common.tmp.tb,
-#			file=sprintf("%s.gene.de.common.1000.1000.tb",out.prefix),
-#			row.names=F,sep="\t",quote=F)
-#	    gene.de.common <- gene.de.common.tmp.tb$geneID
+    if(!is.null(gene.informative.file) && file.exists(gene.informative.file)){
+        gene.informative.tb <- fread(gene.informative.file)
+        gene.de.common <- intersect(gene.common.all,gene.informative.tb$geneSymbol)
+        loginfo(sprintf("A total %d genes from gene.informative.file to be used.",length(gene.de.common)))
+    }
+
 
 	cat(sprintf("RP gene in gene.de.common:\n"))
 	print(gene.de.common[grepl("^RP[LS]",gene.de.common,perl=T)])
@@ -1310,7 +1309,7 @@ saveSCEPerDataSet <- function(exp.list.table,meta.tb,out.prefix)
       {
 	  assay(sce,"norm_exprs") <- assay(sce,"log2TPM")
       }
-      if(exp.list.table$data.id[i] %in% c("HCC.YaoHe10X","HCC.YaoHeSS2") ){
+      if(exp.list.table$data.id[i] %in% c("HCC.YaoHe10X","HCC.YaoHeSS2","HCC.QimingZhang2019_10X","HCC.QimingZhang2019_SS2") ){
 	  f.gene.tmp <- which(rowData(sce)[,"display.name"]=="MALAT1-ENSG00000251562")
 	  rowData(sce)[f.gene.tmp,"display.name"] <- "MALAT1"
       }
@@ -1342,11 +1341,11 @@ saveSCEPerDataSet <- function(exp.list.table,meta.tb,out.prefix)
 			saveRDS(obj.t,file=sprintf("%s/%s.LichunMa2019.sce.rds",dir.sce,ctype))
 		    }
 		}
-		if(dataset.id=="HCC.YaoHe10X"){
+		if(dataset.id %in% c("HCC.YaoHe10X","HCC.QimingZhang2019_10X")){
 		    obj$cancerType[obj$patient=="D20171215"] <- "CHOL"
 		    for(ctype in c("HCC","CHOL")){
 			obj.t <- obj[,obj$cancerType==ctype]
-			saveRDS(obj.t,file=sprintf("%s/%s.YaoHe10X.mod.sce.rds",dir.sce,ctype))
+			saveRDS(obj.t,file=sprintf("%s/%s.QimingZhang2019_10X_mod.sce.rds",dir.sce,ctype))
 		    }
 		}
 		if(dataset.id=="MULT.MichalSlyper2020"){
@@ -1355,10 +1354,10 @@ saveSCEPerDataSet <- function(exp.list.table,meta.tb,out.prefix)
 			saveRDS(obj.t,file=sprintf("%s/%s.MichalSlyper2020.sce.rds",dir.sce,ctype))
 		    }
 		}
-		if(dataset.id=="MULT.ThomasD.Wu2020"){
+		if(dataset.id=="MULT.ThomasDWu2020"){
 		    for(ctype in c("CRC","UCEC","LC","RC")){
 			obj.t <- obj[,obj$cancerType==ctype]
-			saveRDS(obj.t,file=sprintf("%s/%s.ThomasD.Wu2020.sce.rds",dir.sce,ctype))
+			saveRDS(obj.t,file=sprintf("%s/%s.ThomasDWu2020.sce.rds",dir.sce,ctype))
 		    }
 		}
 		#####cellInfo.tb[dataset=="HCC.QimingZhang2019.10X" & patient=="D20171215",cancerType:="CHOL"]

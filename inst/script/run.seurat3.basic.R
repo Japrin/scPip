@@ -126,17 +126,17 @@ if(!is.null(seu) && "percent.mito" %in% colnames(seu[[]])){
 }
 
 ##### check & clean sce #####
-if("percent.mito" %in% colnames(colData(sce))){
+if(!is.null(sce) && "percent.mito" %in% colnames(colData(sce))){
     if(all(is.na(sce$percent.mito))){
         sce$percent.mito <- NULL
     }
 }
 
-if(!("seu.id" %in% colnames(rowData(sce)))){
+if(!is.null(sce) && !("seu.id" %in% colnames(rowData(sce)))){
     rowData(sce)[["seu.id"]] <- gsub("_","-",rowData(sce)[["display.name"]])
 }
 
-if(("libraryID" %in% colnames(colData(sce))) && all(is.na(sce$libraryID))){
+if(!is.null(sce) && ("libraryID" %in% colnames(colData(sce))) && all(is.na(sce$libraryID))){
     sce$libraryID <- "Unk"
 }
 
