@@ -34,11 +34,16 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
             tibble::rownames_to_column(var="geneSymbol") %>%
             arrange((-vst.variance.standardized))
     }
-    f.hvg <- !(hvg.gene.info$geneSymbol %in% gene.exclude.df[["seu.id"]]) &
-        !(grepl("^RP[LS]",hvg.gene.info$geneSymbol,perl=T)) &
-        !(hvg.gene.info$geneSymbol %in% c("MALAT1","MALAT1-ENSG00000251562",
-					  "MALAT1-ENSG00000279576","MALAT1-ENSG00000278217"))
-    hvg.gene.info.flt <- hvg.gene.info[f.hvg,]
+    if(!is.null(gene.exclude.df)){
+        f.hvg <- !(hvg.gene.info$geneSymbol %in% gene.exclude.df[["seu.id"]]) &
+            !(grepl("^(RP[LS]|Rp[ls])",hvg.gene.info$geneSymbol,perl=T)) &
+            !(hvg.gene.info$geneSymbol %in% c("MALAT1","MALAT1-ENSG00000251562",
+                                              "Malat1",
+                          "MALAT1-ENSG00000279576","MALAT1-ENSG00000278217"))
+        hvg.gene.info.flt <- hvg.gene.info[f.hvg,]
+    }else{
+        hvg.gene.info.flt <- hvg.gene.info
+    }
     if(measurement=="TPM"){
         hvg.gene.info.flt$rank.perc <- rank(-hvg.gene.info.flt$vst.variance)/nrow(hvg.gene.info.flt)
     }else {
@@ -84,6 +89,7 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 #' @param do.deg logical; whether perform the differentially expressed gene analysis. (default: FALSE)
 #' @param do.scale logical; whether scale the expression data. (default: FALSE)
 #' @param use.harmony logical; whether use the harmony method. (default: FALSE)
+#' @param specie character; specie, one of "human", "mouse". (default: "human")
 #' @param gene.mapping.table data.table; used for gene ID conversion. (default: NULL)
 #' @param res.addition character vector; additional resolution parameters. Internally, resolutions from 0.1 to 2.4 will be used. (default: NULL)
 #' @param run.stage integer; running stage. (default: 100)
@@ -98,6 +104,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
             cor.var=c("S.Score","G2M.Score","DIG.Score1"),
             ncell.deg=1500,do.deg=F,do.scale=F,
             use.harmony=F,
+            specie="human",
 			gene.mapping.table=NULL,res.addition=NULL,
 			run.stage=100)
 {
@@ -236,8 +243,8 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     plot.all <- function(rd="umap",resolution.vec=seq(0.1,2.4,0.1))
     {
         if(!is.null(seu@meta.data[["loc"]])){
-        p <- DimPlot(seu,reduction=rd, group.by = "loc")
-        ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"loc"),width=5,height=4)
+            p <- DimPlot(seu,reduction=rd, group.by = "loc")
+            ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"loc"),width=5,height=4)
         }
 
         if(!is.null(seu@meta.data[["stype"]])){
@@ -246,8 +253,8 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
         }
         
         if(!is.null(seu@meta.data[["cancerType"]])){
-        p <- DimPlot(seu,reduction=rd, group.by = "cancerType")
-        ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"cancerType"),width=5,height=4)
+            p <- DimPlot(seu,reduction=rd, group.by = "cancerType")
+            ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"cancerType"),width=5,height=4)
         }
 
         if(!is.null(seu@meta.data[["libraryID"]])){
@@ -261,13 +268,15 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
             }
         }
 
-        if(!is.null(seu@meta.data[["patient"]])){
-            if(length(unique(seu$patient))>20){
-                p <- DimPlot(seu,reduction=rd, group.by = "patient") + NoLegend()
-                ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"patient"),width=4.5,height=4)
-            }else{
-                p <- DimPlot(seu,reduction=rd, group.by = "patient")
-                ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,"patient"),width=6.5,height=4)
+        for(.ii in c("patient","batchV")){
+            if(!is.null(seu@meta.data[[.ii]])){
+                if(length(unique(seu@meta.data[[.ii]]))>20){
+                    p <- DimPlot(seu,reduction=rd, group.by = .ii) + NoLegend()
+                    ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,.ii),width=4.5,height=4)
+                }else{
+                    p <- DimPlot(seu,reduction=rd, group.by = .ii)
+                    ggsave(sprintf("%s.%s.%s.png",out.prefix,rd,.ii),width=6.5,height=4)
+                }
             }
         }
 
@@ -391,31 +400,35 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
         adj.cov <- cor.var
         if(adj.cov[1]=="NULL") { adj.cov <- NULL }
         if(!is.null(adj.cov)){
-        loginfo(sprintf("CellCycleScoring ..."))
-        a.env <- new.env()
-        data("cc.genes",package="Seurat",envir=a.env)
-        seu <- CellCycleScoring(seu, s.features = a.env[["cc.genes"]][["s.genes"]],
-                                g2m.features = a.env[["cc.genes"]][["g2m.genes"]],
-                                set.ident = FALSE)
-        
-        loginfo(sprintf("AddModuleScore ..."))
-        dat.ext.dir <- system.file("extdata",package="scPip")
-        glist.HSP <- fread(sprintf("%s/byZhangLab.stress.glist.gz",dat.ext.dir))$geneSymbol
-        #glist.HSP <- intersect(glist.HSP,rownames(seu))
-        seu <- AddModuleScore(seu, features=list("DIG.Score"=glist.HSP), name="DIG.Score",
-                      pool = NULL, nbin = 24, ctrl = 100)
+            loginfo(sprintf("CellCycleScoring ..."))
+            a.env <- new.env()
+            if(specie=="human"){
+                data("cc.genes",package="Seurat",envir=a.env)
+            }else{
+                data("cc.genes.mouse",package="scPip",envir=a.env)
+            }
+            seu <- CellCycleScoring(seu, s.features = a.env[["cc.genes"]][["s.genes"]],
+                                    g2m.features = a.env[["cc.genes"]][["g2m.genes"]],
+                                    set.ident = FALSE)
+            
+            loginfo(sprintf("AddModuleScore ..."))
+            dat.ext.dir <- system.file("extdata",package="scPip")
+            glist.HSP <- fread(sprintf("%s/byZhangLab.stress.glist.gz",dat.ext.dir))$geneSymbol
+            #glist.HSP <- intersect(glist.HSP,rownames(seu))
+            seu <- AddModuleScore(seu, features=list("DIG.Score"=glist.HSP), name="DIG.Score",
+                          pool = NULL, nbin = 24, ctrl = 100)
 
-        glist.ISG <- fread(sprintf("%s/ISG.MSigDB.BROWNE_INTERFERON_RESPONSIVE_GENES.detected.glist.gz",dat.ext.dir))$geneSymbol
-        seu <- AddModuleScore(seu, features=list("ISG.Score"=glist.ISG), name="ISG.Score",
-                      pool = NULL, nbin = 24, ctrl = 100)
+            glist.ISG <- fread(sprintf("%s/ISG.MSigDB.BROWNE_INTERFERON_RESPONSIVE_GENES.detected.glist.gz",dat.ext.dir))$geneSymbol
+            seu <- AddModuleScore(seu, features=list("ISG.Score"=glist.ISG), name="ISG.Score",
+                          pool = NULL, nbin = 24, ctrl = 100)
 
-        ### if correct something, always correct for batchV and percent.mito
-        if("percent.mito" %in% colnames(seu[[]])){
-            adj.cov <- c(adj.cov,"percent.mito")
-        }
-        if(nBatch>1){
-            adj.cov <- c("batchV",adj.cov)
-        }
+            ### if correct something, always correct for batchV and percent.mito
+            if("percent.mito" %in% colnames(seu[[]])){
+                adj.cov <- c(adj.cov,"percent.mito")
+            }
+            if(nBatch>1){
+                adj.cov <- c("batchV",adj.cov)
+            }
         }
         loginfo(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
         print(head(seu[[]]))

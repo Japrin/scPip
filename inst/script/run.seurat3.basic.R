@@ -6,6 +6,7 @@ parser <- ArgumentParser()
 parser$add_argument("-a", "--aFile", type="character", required=TRUE, help="input seu file list")
 parser$add_argument("-b", "--bFile", type="character", required=TRUE, help="input sce file list")
 parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="outPrefix")
+parser$add_argument("-q", "--specie", type="character", default="human", help="one of human, mouse [default %(default)s]")
 parser$add_argument("-c", "--stype", type="character", help="only analyze stype specified (default all)")
 parser$add_argument("-u", "--geneIDFile", type="character", help="gene id mapping file")
 parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
@@ -49,6 +50,7 @@ opt.filterout <- args$filterout
 opt.keep <- args$keep
 opt.geneIDFile <- args$geneIDFile
 opt.removeContamination <- args$removeContamination
+opt.specie <- args$specie
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -77,7 +79,21 @@ suppressMessages(library("scPip"))
 options(stringsAsFactors = FALSE)
 
 dat.ext.dir <- system.file("extdata",package="scPip")
-gene.exclude.file <- sprintf("%s/exclude.gene.misc.misc.v3.RData",dat.ext.dir)
+if(opt.specie=="human"){
+    gene.exclude.file <- sprintf("%s/exclude.gene.misc.misc.v3.RData",dat.ext.dir)
+}else if(opt.specie=="mouse"){
+    gene.exclude.file <- sprintf("%s/exclude.gene.misc.mouse.v3.RData",dat.ext.dir)
+}else{
+    gene.exclude.file <- NULL
+}
+
+if(!is.null(gene.exclude.file)){
+    env.misc <- loadToEnv(gene.exclude.file)
+    g.all.gene.ignore.df <- env.misc$all.gene.ignore.df
+    g.all.gene.ignore.df %>% head
+}else{
+    g.all.gene.ignore.df <- NULL
+}
 
 ######################
 
@@ -85,9 +101,6 @@ gene.mapping.table <- NULL
 if(!is.null(opt.geneIDFile) && file.exists(opt.geneIDFile) && grepl("\\.rds$",opt.geneIDFile,perl=T)){
     gene.mapping.table <- readRDS(opt.geneIDFile)
 }
-
-env.misc <- loadToEnv(gene.exclude.file)
-env.misc$all.gene.ignore.df %>% head
 
 seu <- NULL
 sce <- NULL
@@ -212,7 +225,7 @@ if(!is.null(seu) && !is.null(sce)){
 
 tic("run.Seurat3")
 obj.list <- run.Seurat3(seu,sce,out.prefix,
-                        gene.exclude.df=env.misc$all.gene.ignore.df,
+                        gene.exclude.df=g.all.gene.ignore.df,
                         n.top=1500,
 						measurement=opt.measurement,platform=opt.platform,
                         use.sctransform=opt.scTransform,
