@@ -80,7 +80,7 @@ options(stringsAsFactors = FALSE)
 
 dat.ext.dir <- system.file("extdata",package="scPip")
 if(opt.specie=="human"){
-    gene.exclude.file <- sprintf("%s/exclude.gene.misc.misc.v3.RData",dat.ext.dir)
+    gene.exclude.file <- sprintf("%s/exclude.gene.misc.human.v3.RData",dat.ext.dir)
 }else if(opt.specie=="mouse"){
     gene.exclude.file <- sprintf("%s/exclude.gene.misc.mouse.v3.RData",dat.ext.dir)
 }else{

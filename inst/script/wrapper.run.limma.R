@@ -22,7 +22,7 @@ args <- parser$parse_args()
 print(args)
 
 ############## tune parametrs  ########
-#sce.file <- "/lustre1/zeminz_pkuhpc/zhenglt/work/panC/ana/zhangLab.10X/A20190515/inte.sscClust/OUT.byDataset/T.CD8/T.CD8.CRC.zhangLabSS2/T.CD8.CRC.zhangLabSS2.sce.rds"
+#sce.file <- "T.CD8.CRC.zhangLabSS2.sce.rds"
 #out.prefix <- "OUT.test/TEST"
 #opt.ncores <- 12
 #opt.measurement <- "counts"
@@ -42,7 +42,6 @@ opt.mode <- args$groupMode
 opt.filter <- args$filter
 opt.keep <- args$keep
 
-#gene.exclude.file <- "/lustre1/zeminz_pkuhpc/zhenglt/work/panC/data/geneSet/exclude/exclude.gene.misc.misc.RData"
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -69,13 +68,7 @@ library("reticulate")
 #doParallel::registerDoParallel(cores = opt.ncores)
 options(stringsAsFactors = FALSE)
 
-#####source("/lustre1/zeminz_pkuhpc/zhenglt/02.pipeline/cancer/lib/scRNAToolKit.R")
-#source("/lustre1/zeminz_pkuhpc/zhenglt/work/panC/ana/zhangLab.10X/A20190515/inte.sscClust/run.seurat3.lib.R")
-
 ######################
-
-#env.misc <- loadToEnv(gene.exclude.file)
-#env.misc$all.gene.ignore.df %>% head
 
 if(grepl("\\.rds$",sce.file)){
 	##seu <- readRDS(seu.file)

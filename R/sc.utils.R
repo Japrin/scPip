@@ -395,6 +395,10 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     {
         loginfo(sprintf("running Seurat pipeline ..."))
 
+        if(!is.null(gene.exclude.df) && !("S.Score" %in% cor.var) && !("G2M.Score" %in% cor.var)){
+            gene.exclude.df <- gene.exclude.df[!(category %in% c("cellCycle/proliferation")),]
+        }
+
         seu <- run.HVG(seu,gene.exclude.df,n.top=n.top,measurement=measurement)
 
         adj.cov <- cor.var

@@ -375,6 +375,11 @@ run.inte.metaClust <- function(exp.list.table,
     doParallel::registerDoParallel(cores = ncores)
 
     env.misc <- loadToEnv(gene.exclude.file)
+
+    if(!("S.Score" %in% cor.var) && !("G2M.Score" %in% cor.var)){
+        env.misc$all.gene.ignore.df <- env.misc$all.gene.ignore.df[!(category %in% c("cellCycle/proliferation")),]
+    }
+
     loginfo(sprintf("A total of %d genes in the black list, the top ones:",nrow(env.misc$all.gene.ignore.df)))
     print(head(env.misc$all.gene.ignore.df))
 
