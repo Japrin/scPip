@@ -189,6 +189,7 @@ if(!is.null(opt.removeContamination)){
     ### opt.removeContamination <- "plasmaB:0.75,caf:0.75,epi:0.75,T:0.25"
 
     g.cont.gene.list <- list("plasmaB"=c("JCHAIN"),
+                             "B"=c("CD79A","MS4A1"),
                              "caf"=c("COL1A2", "COL1A1", "COL3A1","LUM"),
                              "epi"=c("KRT18","KRT19","EPCAM"),
                              "T"=c("CD3D","CD3G"),

@@ -854,6 +854,7 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
 #' @importFrom data.table data.table melt
 #' @importFrom Matrix colMeans
 #' @importFrom ggplot2 ggplot geom_density geom_vline facet_wrap ggsave aes_string
+#' @importFrom ggpubr theme_pubr
 #' @param obj object of \code{SingleCellExperiment} or \code{Seurat}
 #' @param out.prefix character; output prefix. (default: NULL)
 #' @param assay.name character vector; which assay to use. (default: "norm_exprs").
