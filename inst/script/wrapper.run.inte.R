@@ -46,7 +46,9 @@ script.dir <- system.file("script",package="scPip")
 report.template.file <- sprintf("%s/rna/report.template.sc.rmd",script.dir)
 
 ncores <- opt.ncores
-gene.exclude.file <- sprintf("%s/exclude.gene.misc.human.v3.RData",dat.ext.dir)
+####gene.exclude.file <- sprintf("%s/exclude.gene.misc.human.v3.RData",dat.ext.dir)
+### after 20220119
+gene.exclude.file <- sprintf("%s/exclude.gene.misc.human.v4.RData",dat.ext.dir)
 
 options(stringsAsFactors = FALSE)
 

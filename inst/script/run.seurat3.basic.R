@@ -9,7 +9,8 @@ parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="
 parser$add_argument("-q", "--specie", type="character", default="human", help="one of human, mouse [default %(default)s]")
 parser$add_argument("-c", "--stype", type="character", help="only analyze stype specified (default all)")
 parser$add_argument("-u", "--geneIDFile", type="character", help="gene id mapping file")
-parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
+##parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
+parser$add_argument("-d", "--npc", type="character",default="15", help="[default %(default)s]")
 parser$add_argument("-n", "--ncores", type="integer",default=16L, help="[default %(default)s]")
 parser$add_argument("-m", "--measurement",type="character",default="counts",help="[default %(default)s]")
 parser$add_argument("-r", "--resolution",type="character",default="2",help="[default %(default)s]")
@@ -34,7 +35,8 @@ print(args)
 seu.file <- args$aFile
 sce.file <- args$bFile
 out.prefix <- args$outPrefix
-opt.npc <- args$npc
+###opt.npc <- args$npc
+opt.npc <- eval(parse(text = args$npc))
 opt.ncores <- args$ncores
 opt.measurement <- args$measurement
 opt.platform <- args$platform
@@ -80,9 +82,11 @@ options(stringsAsFactors = FALSE)
 
 dat.ext.dir <- system.file("extdata",package="scPip")
 if(opt.specie=="human"){
-    gene.exclude.file <- sprintf("%s/exclude.gene.misc.human.v3.RData",dat.ext.dir)
+    ###gene.exclude.file <- sprintf("%s/exclude.gene.misc.human.v3.RData",dat.ext.dir)
+    gene.exclude.file <- sprintf("%s/exclude.gene.misc.human.v4.RData",dat.ext.dir)
 }else if(opt.specie=="mouse"){
-    gene.exclude.file <- sprintf("%s/exclude.gene.misc.mouse.v3.RData",dat.ext.dir)
+    ###gene.exclude.file <- sprintf("%s/exclude.gene.misc.mouse.v3.RData",dat.ext.dir)
+    gene.exclude.file <- sprintf("%s/exclude.gene.misc.mouse.v4.RData",dat.ext.dir)
 }else{
     gene.exclude.file <- NULL
 }

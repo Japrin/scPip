@@ -452,16 +452,28 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
         }
 
         #### PCA
-        seu <- RunPCA(object = seu)
+        if(length(opt.npc)==1){
+            opt.pc.used <- 1:opt.npc
+        }else{
+            opt.pc.used <- opt.npc
+        }
+        cat(sprintf("use PCs:\n"))
+        print(opt.pc.used)
+        seu <- RunPCA(object = seu,ndims.print = 1:5)
         #print(x = seu[['pca']], dims = 1:5, nfeatures = 5, projected = FALSE)
         #p <- VizDimLoadings(seu)
         #ggsave(sprintf("%s.pca.01.pdf",out.prefix),width=7,height=14)
 
         seu <- ProjectDim(object = seu)
+        cat(sprintf("genes associated with PCs:\n"))
+        print(x = seu[['pca']], dims = 1:30, nfeatures = 30, projected = TRUE)
 
-        #pdf(sprintf("%s.pca.02.pdf",out.prefix),width=14,height=18)
-        #DimHeatmap(object = seu, dims = 1:15, cells = 500, balanced = TRUE,fast = TRUE)
-        #dev.off()
+        pdf(sprintf("%s.pca.ht.01.pdf",out.prefix),width=14,height=18)
+        DimHeatmap(object = seu, dims = 1:15, cells = 500, balanced = TRUE,fast = TRUE)
+        dev.off()
+        pdf(sprintf("%s.pca.ht.02.pdf",out.prefix),width=14,height=18)
+        DimHeatmap(object = seu, dims = 16:30, cells = 500, balanced = TRUE,fast = TRUE)
+        dev.off()
 
         #p <- ElbowPlot(object = seu,ndims=50)
         #ggsave(sprintf("%s.pca.03.pdf",out.prefix),width=5,height=4)
@@ -469,26 +481,27 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
         loginfo(sprintf("use.harmony: %s",use.harmony))
         use.rd <- "pca"
         if(use.harmony){
-            seu <- RunHarmony(seu, c("batchV"),verbose=F)
+            seu <- RunHarmony(seu, c("batchV"),dims.use=opt.pc.used,verbose=F)
             use.rd <- "harmony"
+            opt.pc.used <- seq_len(ncol(Embeddings(seu,reduction = "harmony")))
         }
 
         ######### UMAP
         tic("RunUMAP...")
-        seu <- RunUMAP(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
+        seu <- RunUMAP(object = seu, reduction = use.rd,dims = opt.pc.used,verbose=F)
         toc()
         
         ######### tSNE 
         if("tsne" %in% plot.rd){
         tic("RunTSNE...")
-        seu <- RunTSNE(object = seu, reduction = use.rd,dims = 1:opt.npc,verbose=F)
+        seu <- RunTSNE(object = seu, reduction = use.rd,dims = opt.pc.used,verbose=F)
         toc()
         }
 
         #######################################
         
         #### clustring
-        seu <- FindNeighbors(object = seu, reduction = use.rd, dims = 1:opt.npc)
+        seu <- FindNeighbors(object = seu, reduction = use.rd, dims = opt.pc.used)
 
         resolution.vec <- seq(0.1,2.4,0.1)
         seu <- FindClusters(object = seu,resolution = c(resolution.vec,res.addition),verbose=F)
