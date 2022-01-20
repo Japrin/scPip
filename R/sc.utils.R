@@ -481,7 +481,22 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
         loginfo(sprintf("use.harmony: %s",use.harmony))
         use.rd <- "pca"
         if(use.harmony){
-            seu <- RunHarmony(seu, c("batchV"),dims.use=opt.pc.used,verbose=F)
+
+            ### dims.use is not working
+            ### seu <- RunHarmony(seu, c("batchV"),dims.use=opt.pc.used,verbose=F)
+            dat.pca.used <- Embeddings(seu,reduction = "pca")[,opt.pc.used,drop=F]
+            suppressWarnings({
+                pcadata <- Seurat::CreateDimReducObject(
+                  embeddings = dat.pca.used,
+                  stdev = as.numeric(apply(dat.pca.used, 2, stats::sd)),
+                  assay = seu[["pca"]]@assay.used,
+                  key = "PC_"
+                )
+            })
+            seu[["pca"]] <- pcadata
+            ### 
+            seu <- RunHarmony(seu, c("batchV"),verbose=F)
+
             use.rd <- "harmony"
             opt.pc.used <- seq_len(ncol(Embeddings(seu,reduction = "harmony")))
         }
