@@ -16,12 +16,13 @@ parser$add_argument("-m", "--measurement",type="character",default="counts",help
 parser$add_argument("-r", "--resolution",type="character",default="2",help="[default %(default)s]")
 parser$add_argument("-t", "--scTransform",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-y", "--harmony",action="store_true",default=FALSE,help="[default %(default)s]")
+parser$add_argument("-i", "--integration",type="character",help="[default %(default)s]")
 parser$add_argument("-g", "--deg",action="store_true",default=FALSE,help="[default %(default)s]")
 parser$add_argument("-w", "--ncellDEG",type="integer",default=1500,
                     help="number of cells to downsample to for each group. used in DEG analysis. [default %(default)s]")
 parser$add_argument("-s", "--scale",action="store_true",default=FALSE,help="[default %(default)s]")
-parser$add_argument("-j", "--corVar", type="character", default="S.Score,G2M.Score,DIG.Score1",
-		    help="subset of S.Score,G2M.Score,DIG.Score1,ISG.Score1, or NULL. If correct something, always correct for batchV and percent.mito. [default %(default)s]")
+parser$add_argument("-j", "--corVar", type="character", default="S.Score,G2M.Score,DIG.Score1,percent.mito,batchV",
+		    help="subset of S.Score,G2M.Score,DIG.Score1,ISG.Score1, or NULL. [default %(default)s]")
 parser$add_argument("-f", "--filterout",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Filter out cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
 parser$add_argument("-k", "--keep",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Keep only cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
 parser$add_argument("-x", "--removeContamination",type="character",help="comma separated string indicates subset of predefined signature (plasmaB, caf, epi, T, cd8, and mac) will be calculated and cells with high signature scores will be removed. For example, use plasmaB:0.75,caf:0.75,epi:0.75,T:0.25 for myeloid cell analysis. The numer after colon is the threshold")
@@ -44,6 +45,7 @@ opt.stype <- args$stype
 opt.resolution <- args$resolution
 opt.scTransform <- args$scTransform
 opt.harmony <- args$harmony
+opt.integration <- args$integration
 opt.doDEG <- args$deg
 opt.ncell.deg <- args$ncellDEG
 opt.scale <- args$scale
@@ -235,6 +237,7 @@ obj.list <- run.Seurat3(seu,sce,out.prefix,
 						measurement=opt.measurement,platform=opt.platform,
                         use.sctransform=opt.scTransform,
                         use.harmony=opt.harmony,
+                        method.integration=opt.integration,
                         do.deg=opt.doDEG,
                         ncell.deg=opt.ncell.deg,
                         gene.mapping.table=gene.mapping.table,

@@ -23,6 +23,7 @@ run.Seurat3(
   do.deg = F,
   do.scale = F,
   use.harmony = F,
+  method.integration = NULL,
   specie = "human",
   gene.mapping.table = NULL,
   res.addition = NULL,
@@ -65,6 +66,8 @@ run.Seurat3(
 \item{do.scale}{logical; whether scale the expression data. (default: FALSE)}
 
 \item{use.harmony}{logical; whether use the harmony method. (default: FALSE)}
+
+\item{method.integration}{character; integration method. (default: NULL)}
 
 \item{specie}{character; specie, one of "human", "mouse". (default: "human")}
 

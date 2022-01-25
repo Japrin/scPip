@@ -84,11 +84,12 @@ run.HVG <- function(seu,gene.exclude.df,n.top=1500,measurement="counts")
 #' @param plot.rd character vector; reducedDimNames used for plots (default: c("umap"))
 #' @param opt.npc integer; optimal number of principal componets to use (default: 15)
 #' @param ncores integer; number of CPU cores to use (default: 16)
-#' @param cor.var character vector; Subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1") or NULL. (default: c("S.Score","G2M.Score","DIG.Score1")). If certain variables are corrected (!is.null(cor.var) || cor.var!="NULL"), the pipeline will also correct for batchV and percent.mito.
+#' @param cor.var character vector; Subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","percent.mito","batchV") or NULL. (default: c("S.Score","G2M.Score","DIG.Score1","percent.mito","batchV")).
 #' @param ncell.deg integer; number of cell to downsample. used in the differentially expressed gene analysis. (default: 1500)
 #' @param do.deg logical; whether perform the differentially expressed gene analysis. (default: FALSE)
 #' @param do.scale logical; whether scale the expression data. (default: FALSE)
 #' @param use.harmony logical; whether use the harmony method. (default: FALSE)
+#' @param method.integration character; integration method. (default: NULL)
 #' @param specie character; specie, one of "human", "mouse". (default: "human")
 #' @param gene.mapping.table data.table; used for gene ID conversion. (default: NULL)
 #' @param res.addition character vector; additional resolution parameters. Internally, resolutions from 0.1 to 2.4 will be used. (default: NULL)
@@ -101,9 +102,11 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 			opt.res="1",use.sctransform=F,aid="PRJ",plot.rd=c("umap"),
 			opt.npc=15,ncores=16,
             #do.adj=T,
-            cor.var=c("S.Score","G2M.Score","DIG.Score1"),
+            ### remove this function: If certain variables are corrected (!is.null(cor.var) || cor.var!="NULL"), the pipeline will also correct for batchV and percent.mito
+            cor.var=c("S.Score","G2M.Score","DIG.Score1","percent.mito","batchV"),
             ncell.deg=1500,do.deg=F,do.scale=F,
             use.harmony=F,
+            method.integration=NULL,
             specie="human",
 			gene.mapping.table=NULL,res.addition=NULL,
 			run.stage=100)
@@ -414,6 +417,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
             seu <- CellCycleScoring(seu, s.features = a.env[["cc.genes"]][["s.genes"]],
                                     g2m.features = a.env[["cc.genes"]][["g2m.genes"]],
                                     set.ident = FALSE)
+            #seu$CC.Difference <- seu$S.Score - seu$G2M.Score
             
             loginfo(sprintf("AddModuleScore ..."))
             dat.ext.dir <- system.file("extdata",package="scPip")
@@ -426,12 +430,18 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
             seu <- AddModuleScore(seu, features=list("ISG.Score"=glist.ISG), name="ISG.Score",
                           pool = NULL, nbin = 24, ctrl = 100)
 
-            ### if correct something, always correct for batchV and percent.mito
-            if("percent.mito" %in% colnames(seu[[]])){
-                adj.cov <- c(adj.cov,"percent.mito")
+            ### remove this function: if correct something, always correct for batchV and percent.mito
+            ###if("percent.mito" %in% colnames(seu[[]])){
+            ###    adj.cov <- c(adj.cov,"percent.mito")
+            ###}
+            ###if(nBatch>1){
+            ###    adj.cov <- c(adj.cov,c("batchV"))
+            ###}
+            if(!("percent.mito" %in% colnames(seu[[]]))){
+                adj.cov <- setdiff(adj.cov,"percent.mito")
             }
-            if(nBatch>1){
-                adj.cov <- c("batchV",adj.cov)
+            if(!(nBatch>1)){
+                adj.cov <- setdiff(adj.cov,c("batchV"))
             }
         }
         loginfo(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
@@ -480,7 +490,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
         loginfo(sprintf("use.harmony: %s",use.harmony))
         use.rd <- "pca"
-        if(use.harmony){
+        if(use.harmony || method.integration=="Harmony"){
 
             ### dims.use is not working
             ### seu <- RunHarmony(seu, c("batchV"),dims.use=opt.pc.used,verbose=F)
@@ -499,6 +509,13 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
             use.rd <- "harmony"
             opt.pc.used <- seq_len(ncol(Embeddings(seu,reduction = "harmony")))
+        }
+
+        if(!use.harmony && method.integration=="Scanorama"){
+            ##saveRDS(seu,file=sprintf("%s.debug.rds",out.prefix))
+            seu <- run.Scanorama(seu)
+            use.rd <- "Scanorama"
+            opt.pc.used <- 1:100
         }
 
         ######### UMAP
@@ -640,6 +657,59 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
     return(list("seu"=seu,"sce"=sce))
 }
+
+#' Wraper for running Scanorama 
+#' @importFrom Seurat CreateSeuratObject SetAssayData GetAssayData CellCycleScoring AddModuleScore ScaleData SCTransform RunPCA ProjectDim RunUMAP RunTSNE FindNeighbors FindClusters Embeddings DimPlot NoLegend
+#' @importFrom SingleCellExperiment `reducedDim<-`
+#' @importFrom SummarizedExperiment assayNames assay `assay<-` rowData `rowData<-` colData `colData<-`
+#' @param seu object of \code{Seurat}
+#' @param col.batch character; column name indicating batches (default: "batchV")
+#' @param assay.slot character; which slot to be used? (default: "data")
+#' @param ... ; passed to scanorama$integrate
+#' @return a Seurat object
+#' @details run the Scanorama
+#' @export
+run.Scanorama <- function(seu,col.batch="batchV",assay.slot="data",...)
+{
+    require("reticulate")
+    require("plyr")
+
+    seu@meta.data[[col.batch]] <- as.character(seu[[]][[col.batch]])
+    b.vec <- unique(seu@meta.data[[col.batch]])
+
+    datasets <- lapply(b.vec,function(x){
+                           seu.x <- seu[, seu[[]][[col.batch]] == x]
+                           ####ERROR: Data sets must be numpy array or scipy.sparse.csr_matrix, received type <class 'scipy.sparse.csc.csc_matrix'>.
+                           ####t(GetAssayData(seu.x,assay.slot)[VariableFeatures(seu),])
+                           t(as.matrix(GetAssayData(seu.x,assay.slot)[VariableFeatures(seu),]))
+                        })
+    ### cannot have names
+    ###names(datasets) <- b.vec
+
+    genes_list <- lapply(b.vec,function(x){ VariableFeatures(seu) })
+    ### cannot have names
+    ###names(genes_list) <- b.vec
+    
+    scanorama <- import('scanorama')
+    integrated.data <- scanorama$integrate(datasets, genes_list,...)
+
+    rd.scanorama <- do.call(rbind,integrated.data[[1]])
+    rownames(rd.scanorama) <- colnames(seu)
+    colnames(rd.scanorama) <- sprintf("Scanorama_%d",seq_len(ncol(rd.scanorama)))
+
+    suppressWarnings({
+        rd.data <- Seurat::CreateDimReducObject(
+          embeddings = rd.scanorama,
+          stdev = as.numeric(apply(rd.scanorama, 2, stats::sd)),
+          key = "Scanorama_"
+        )
+    })
+    seu[["Scanorama"]] <- rd.data
+
+    return(seu)
+
+}
+
 
 #' Identification of gamma delta T cells (Fred's method)
 #' @importFrom SingleCellExperiment rowData
