@@ -490,7 +490,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 
         loginfo(sprintf("use.harmony: %s",use.harmony))
         use.rd <- "pca"
-        if(use.harmony || method.integration=="Harmony"){
+        if(use.harmony || (!is.null(method.integration) && method.integration=="Harmony" ) ){
 
             ### dims.use is not working
             ### seu <- RunHarmony(seu, c("batchV"),dims.use=opt.pc.used,verbose=F)
@@ -511,7 +511,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
             opt.pc.used <- seq_len(ncol(Embeddings(seu,reduction = "harmony")))
         }
 
-        if(!use.harmony && method.integration=="Scanorama"){
+        if(!use.harmony && (!is.null(method.integration) && method.integration=="Scanorama") ){
             ##saveRDS(seu,file=sprintf("%s.debug.rds",out.prefix))
             seu <- run.Scanorama(seu)
             use.rd <- "Scanorama"
