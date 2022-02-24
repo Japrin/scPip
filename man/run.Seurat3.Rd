@@ -18,7 +18,7 @@ run.Seurat3(
   plot.rd = c("umap"),
   opt.npc = 15,
   ncores = 16,
-  cor.var = c("S.Score", "G2M.Score", "DIG.Score1"),
+  cor.var = c("S.Score", "G2M.Score", "DIG.Score1", "percent.mito", "batchV"),
   ncell.deg = 1500,
   do.deg = F,
   do.scale = F,
@@ -57,7 +57,7 @@ run.Seurat3(
 
 \item{ncores}{integer; number of CPU cores to use (default: 16)}
 
-\item{cor.var}{character vector; Subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1") or NULL. (default: c("S.Score","G2M.Score","DIG.Score1")). If certain variables are corrected (!is.null(cor.var) || cor.var!="NULL"), the pipeline will also correct for batchV and percent.mito.}
+\item{cor.var}{character vector; Subset of c("S.Score","G2M.Score","DIG.Score1","ISG.Score1","percent.mito","batchV") or NULL. (default: c("S.Score","G2M.Score","DIG.Score1","percent.mito","batchV")).}
 
 \item{ncell.deg}{integer; number of cell to downsample. used in the differentially expressed gene analysis. (default: 1500)}
 

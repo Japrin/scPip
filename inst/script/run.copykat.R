@@ -77,6 +77,8 @@ if(!is.null(seu) && !is.null(opt.keep)){
 }
 
 #############
+#copykat.test <- readRDS(sprintf("%s.copykat.rds",out.prefix))
+
 pred.test <- data.frame(copykat.test$prediction)
 CNA.test <- data.frame(copykat.test$CNAmat)
 
@@ -124,6 +126,13 @@ CNA.test <- data.frame(copykat.test$CNAmat)
 ##### heatmap plot 02
 {
 
+    my_palette <- colorRampPalette(rev(RColorBrewer::brewer.pal(n = 3, name = "RdBu")))(n = 999)
+
+    chr <- as.numeric(CNA.test$chrom) %% 2+1
+    rbPal1 <- colorRampPalette(c('black','grey'))
+    CHR <- rbPal1(2)[as.numeric(chr)]
+    chr1 <- cbind(CHR,CHR)
+
     tumor.cells <- pred.test$cell.names[which(pred.test$copykat.pred=="aneuploid")]
     tumor.mat <- CNA.test[, which(colnames(CNA.test) %in% make.names(tumor.cells))]
     hcc <- hclust(parallelDist::parDist(t(tumor.mat),threads = opt.ncores, method = "euclidean"), method = "ward.D2")
@@ -132,6 +141,12 @@ CNA.test <- data.frame(copykat.test$CNAmat)
     rbPal6 <- colorRampPalette(RColorBrewer::brewer.pal(n = 8, name = "Dark2")[3:4])
     subpop <- rbPal6(2)[as.numeric(factor(hc.umap))]
     cells <- rbind(subpop,subpop)
+
+    col_breaks = c(seq(-1,-0.4,length=50),
+                   seq(-0.4,-0.2,length=150),
+                   seq(-0.2,0.2,length=600),
+                   seq(0.2,0.4,length=150),
+                   seq(0.4, 1,length=50))
 
     png(sprintf("%s.heatmap.02.png",out.prefix),width=800,height=700)
     heatmap.3(t(tumor.mat),
