@@ -358,7 +358,8 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
                       reduced.name = sprintf("seurat.%s",rd),
                       colSet=colSet,size=0.03,
                       par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-                      vector.friendly=T,
+                      #vector.friendly=T,
+                      my.ggPoint=ggrastr::geom_point_rast,
                       out.prefix = sprintf("%s.seurat.%s.groupBy.%s",out.prefix,rd,"percent.mito"),
                       base_aspect_ratio = 1.30)
 
@@ -366,7 +367,8 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
                       reduced.name = sprintf("seurat.%s",rd),
                       colSet=colSet,size=0.03,
                       par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-                      vector.friendly=T,
+                      #vector.friendly=T,
+                      my.ggPoint=ggrastr::geom_point_rast,
                       out.prefix = sprintf("%s.seurat.%s.groupBy.%s",out.prefix,rd,"nCount_RNA"),
                       base_aspect_ratio = 1.30)
 
@@ -374,7 +376,8 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
                       reduced.name = sprintf("seurat.%s",rd),
                       colSet=colSet,size=0.03,
                       par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-                      vector.friendly=T,
+                      #vector.friendly=T,
+                      my.ggPoint=ggrastr::geom_point_rast,
                       out.prefix = sprintf("%s.seurat.%s.groupBy.%s",out.prefix,rd,"nFeature_RNA"),
                       base_aspect_ratio = 1.30)
     }
@@ -589,7 +592,8 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 		      reduced.name = sprintf("seurat.%s",i.rd),
 		      colSet=list(),size=0.03,label=3,
 		      par.geneOnTSNE = list(scales = "free",pt.order = "random"),
-		      vector.friendly=T,
+		      #vector.friendly=T,
+              my.ggPoint=ggrastr::geom_point_rast,
 		      out.prefix = sprintf("%s.seurat.%s.groupBy.%s",out.prefix,i.rd,"ClusterID"),
 		      base_aspect_ratio = 1.30)
     }
