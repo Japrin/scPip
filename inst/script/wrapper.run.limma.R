@@ -12,6 +12,7 @@ parser$add_argument("-w", "--ncellDEG",type="integer",default=1500,
                     help="number of cells to downsample to for each group. used in DEG analysis. [default %(default)s]")
 parser$add_argument("-c", "--stype", type="character", help="only analyze stype specified (default all)")
 parser$add_argument("-a", "--group", type="character",default="ClusterID", help="group var (default ClusterID)")
+parser$add_argument("-l", "--groupList", type="character",default=NULL, help="DEG of groups to calculate. If NULL, all groups (default NULL)")
 parser$add_argument("-d", "--groupMode", type="character",default="multi", help="group mode (default multi)")
 parser$add_argument("-q", "--filter", type="character",help="comma(,) seperated group list (default: don't apply filter)")
 parser$add_argument("-k", "--keep", type="character",help="format COLUMN:KEEP_VAL1,KEEP_VAL2,... (default: don't apply keeper)")
@@ -20,6 +21,7 @@ parser$add_argument("-k", "--keep", type="character",help="format COLUMN:KEEP_VA
 ####parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
 args <- parser$parse_args()
 print(args)
+
 
 ############## tune parametrs  ########
 #sce.file <- "T.CD8.CRC.zhangLabSS2.sce.rds"
@@ -38,10 +40,14 @@ opt.ncellDEG <- args$ncellDEG
 opt.stype <- args$stype
 opt.platform <- args$platform
 opt.group <- args$group
+opt.groupList <- args$groupList
 opt.mode <- args$groupMode
 opt.filter <- args$filter
 opt.keep <- args$keep
 
+if(!is.null(opt.groupList)){
+	opt.groupList <- unlist(strsplit(opt.groupList,",",perl=T))
+}
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -110,6 +116,7 @@ if(!is.null(opt.filter)){
 }
 
 
+
 tic("run limma")
 
 if(!("norm_exprs" %in% assayNames(sce)))
@@ -150,6 +157,7 @@ de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,
 			   ncell.downsample=opt.ncellDEG,
 			   ####ncell.downsample=if(opt.mode=="multi") 1500 else 100,
 			   group.var=opt.group,batch=if(nBatch>1) "batchV" else NULL,
+               group.list=opt.groupList,
 			   verbose=3,
 			   group.mode=opt.mode,
 			   out.prefix=out.prefix,n.cores=opt.ncores,
