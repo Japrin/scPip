@@ -745,6 +745,10 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
                 ##unique(as.data.table(de.out$all[,c("cluster",grep("^length\\.",colnames(de.out$all),value=T)),with=F]))
                 ncell.df <- unique(as.data.table(de.out$all[,c("cluster","length._case"),with=F]))
                 ncell.control.df <- unique(as.data.table(de.out$all[,c("cluster","length._control"),with=F]))
+                if(nrow(ncell.df)==0 || nrow(ncell.control.df)==0){
+                    cat(sprintf("%d, %s: sce constructed failed, no DE genes found!\n",i,de.limma.tb$data.id[i]))
+                    next
+                }
                 ncell.df <- merge(ncell.df,ncell.control.df,by="cluster")
                 colnames(ncell.df) <- c("ClusterID","ncells","ncells.control")
                 ncells.vec <- structure(ncell.df$ncells,names=ncell.df$ClusterID)
@@ -768,7 +772,8 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
                                     zp <- qnorm(pt(-(fit$t),df=(fit$df.prior+fit$df.residual))[,1])
                                     #zp <- qnorm(fit$p.value*0.5)
                                  }else if(de.mode=="multiAsTwo"){
-                                    n2i <- sum(ncells.vec[setdiff(names(ncells.vec),group.id)])
+                                    #n2i <- sum(ncells.vec[setdiff(names(ncells.vec),group.id)])
+                                    n2i <- ncells.control.vec[group.id]
                                     ES <- effectsize(fit$t[,"II",drop=F],((n1i*n2i)/(n1i+n2i)),(fit$df.prior+fit$df.residual))
                                     zp <- qnorm(pt(-(fit$t[,"II",drop=F]),df=(fit$df.prior+fit$df.residual))[,1])
                                  }
@@ -832,7 +837,7 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
 
             ################
             sce.list[[id.d]] <- sce.obj
-            cat(sprintf("%d, %s\n",i,de.limma.tb$data.id[i]))
+            cat(sprintf("%d, %s: sce constructed successfully.\n",i,de.limma.tb$data.id[i]))
             ####if(length(gene.common)==0)
             ####    ##gene.common <- rownames(sce.list[[id.d]])
             ####    gene.common <- rowData(sce.list[[id.d]])$display.name
@@ -1015,7 +1020,7 @@ sigGeneHeatmap <- function(out.prefix,gene.desc.top,sce.pb,gene.to.show.tb,value
 
     g.plot.mtx <- as.matrix(g.plot.tb[,-1])
     rownames(g.plot.mtx) <- g.plot.tb[[1]]
-    g.plot.mtx <- g.plot.mtx[gene.to.show.tb$geneID,]
+    g.plot.mtx <- g.plot.mtx[gene.to.show.tb$geneID,,drop=F]
     g.plot.mtx[g.plot.mtx < -1] <- -1
     g.plot.mtx[g.plot.mtx >  1] <- 1
     cuts <- c(-1,-0.5,-0.15,0.15,0.5,1)
