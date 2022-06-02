@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library("argparse"))
 
 parser <- ArgumentParser()
 parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="outPrefix")
-parser$add_argument("-e", "--expFile", type="character", required=TRUE, help="input seu file list")
+parser$add_argument("-e", "--expFile", type="character", required=TRUE, help="input /sce/seu file")
 parser$add_argument("-a", "--aid", type="character", default="SAMPLE_X", help="aid")
 parser$add_argument("-n", "--ncores", type="integer",default=8L, help="[default %(default)s]")
 parser$add_argument("-k", "--keep",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Keep only cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
@@ -33,31 +33,53 @@ dir.create(dirname(out.prefix),F,T)
 library("Seurat")
 library("copykat")
 library("tictoc")
+library("sscVis")
 
+obj.exp <- NULL
 
 tic("readRDS(exp.file)")
-seu <- readRDS(exp.file)
+obj.exp <- readRDS(exp.file)
 toc()
 
+if(!(class(obj.exp) %in% c("SingleCellExperiment","Seurat"))){
+    cat(sprintf("Not supported file type: %s\n",exp.file))
+    q()
+}
+
 #### 
-if(!is.null(seu) && !is.null(opt.keep)){
+if(!is.null(obj.exp) && !is.null(opt.keep)){
 	if(!file.exists(opt.keep)){
 		col.keep <- unlist(strsplit(opt.keep,":"))[1]
 		col.value <- unlist(strsplit(unlist(strsplit(opt.keep,":"))[2],","))
-        if(col.keep %in% colnames(seu[[]])){
-            cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
-            f.cell <- seu[[]][,col.keep] %in% col.value
-            print(summary(f.cell))
-            seu <- seu[,f.cell]
-        }else{
-            warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
+        if(class(obj.exp)=="Seurat"){
+            if(col.keep %in% colnames(obj.exp[[]])){
+                cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
+                f.cell <- obj.exp[[]][,col.keep] %in% col.value
+                print(summary(f.cell))
+                obj.exp <- obj.exp[,f.cell]
+            }else{
+                warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
+            }
+        }else if(class(obj.exp)=="SingleCellExperiment"){
+            if(col.keep %in% colnames(colData(obj.exp))){
+                cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
+                f.cell <- obj.exp[[col.keep]] %in% col.value
+                print(summary(f.cell))
+                obj.exp <- obj.exp[,f.cell]
+            }else{
+                warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
+            }
         }
     }
 }
 
 {
 
-    exp.rawdata <- as.matrix(seu@assays$RNA@counts)
+    if(class(obj.exp)=="Seurat"){
+        exp.rawdata <- as.matrix(obj.exp@assays$RNA@counts)
+    }else if(class(obj.exp)=="SingleCellExperiment"){
+        exp.rawdata <- assay(obj.exp,"counts")
+    }
 
     cDir <- getwd()
     setwd(dirname(out.prefix))
