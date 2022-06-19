@@ -14,6 +14,7 @@ parser$add_argument("-c", "--stype", type="character", help="only analyze stype 
 parser$add_argument("-a", "--group", type="character",default="ClusterID", help="group var (default ClusterID)")
 parser$add_argument("-l", "--groupList", type="character",default=NULL, help="DEG of groups to calculate. If NULL, all groups (default NULL)")
 parser$add_argument("-d", "--groupMode", type="character",default="multi", help="group mode (default multi)")
+parser$add_argument("-t", "--batch", type="character",default="batchV", help="column of colData(sce), used as batch (default %(default)s)")
 parser$add_argument("-q", "--filter", type="character",help="comma(,) seperated group list (default: don't apply filter)")
 parser$add_argument("-k", "--keep", type="character",help="format COLUMN:KEEP_VAL1,KEEP_VAL2,... (default: don't apply keeper)")
 ###parser$add_argument("-a", "--aFile", type="character", required=TRUE, help="input seu file list")
@@ -42,6 +43,7 @@ opt.platform <- args$platform
 opt.group <- args$group
 opt.groupList <- args$groupList
 opt.mode <- args$groupMode
+opt.batch <- args$batch
 opt.filter <- args$filter
 opt.keep <- args$keep
 
@@ -147,7 +149,7 @@ print(n.group.flt)
 
 sce <- sce[,sce[[opt.group]] %in% names(n.group.flt)]
 
-nBatch <- length(table(sce$batchV))
+nBatch <- length(table(colData(sce)[[opt.batch]]))
 
 set.seed(9998)
 tic("limma")
@@ -156,7 +158,7 @@ de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,
 			   #ncell.downsample=if(opt.mode=="multi") 1500 else NULL,
 			   ncell.downsample=opt.ncellDEG,
 			   ####ncell.downsample=if(opt.mode=="multi") 1500 else 100,
-			   group.var=opt.group,batch=if(nBatch>1) "batchV" else NULL,
+			   group.var=opt.group,batch=if(nBatch>1 && opt.batch!="NULL") opt.batch else NULL,
                group.list=opt.groupList,
 			   verbose=3,
 			   group.mode=opt.mode,
