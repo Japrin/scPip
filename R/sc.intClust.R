@@ -1138,9 +1138,9 @@ resetSig <- function(obj)
     zs <- assay(obj,"dprime")
     adjP <- assay(obj,"adj.P.Val")
     sig <- assay(obj,"sig")
-    zs[1:4,1:3]
-    sig[1:4,1:3]
-    adjP[1:4,1:3]
+    #zs[1:4,1:3]
+    #sig[1:4,1:3]
+    #adjP[1:4,1:3]
     sig[!(adjP < 0.01 & zs > 0.15)] <- 0
     sig[adjP < 0.01 & zs > 0.15] <- 1
     assay(obj,"sig") <- sig
