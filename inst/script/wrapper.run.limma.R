@@ -17,9 +17,8 @@ parser$add_argument("-d", "--groupMode", type="character",default="multi", help=
 parser$add_argument("-t", "--batch", type="character",default="batchV", help="column of colData(sce), used as batch (default %(default)s)")
 parser$add_argument("-q", "--filter", type="character",help="comma(,) seperated group list (default: don't apply filter)")
 parser$add_argument("-k", "--keep", type="character",help="format COLUMN:KEEP_VAL1,KEEP_VAL2,... (default: don't apply keeper)")
-###parser$add_argument("-a", "--aFile", type="character", required=TRUE, help="input seu file list")
-####parser$add_argument("-s", "--sample", type="character", default="SAMPLE", help="sample id")
-####parser$add_argument("-d", "--npc", type="integer",default=15L, help="[default %(default)s]")
+parser$add_argument("-r", "--TExp", type="double",default=0.3,help="threshold of expressor (default: 0.3)")
+parser$add_argument("-y", "--NotUseZ", action="store_false",dest="TUseZ",help="do not use the z-score version of the data to identify expressor")
 args <- parser$parse_args()
 print(args)
 
@@ -46,6 +45,8 @@ opt.mode <- args$groupMode
 opt.batch <- args$batch
 opt.filter <- args$filter
 opt.keep <- args$keep
+opt.TUseZ <- args$TUseZ
+opt.TExp <- args$TExp
 
 if(!is.null(opt.groupList)){
 	opt.groupList <- unlist(strsplit(opt.groupList,",",perl=T))
@@ -164,6 +165,7 @@ de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,
 			   group.mode=opt.mode,
 			   out.prefix=out.prefix,n.cores=opt.ncores,
 			   #T.expr=0.3,T.bin.useZ=T,
+               T.expr=opt.TExp,T.bin.useZ=opt.TUseZ,
 			   T.logFC=if(opt.platform=="SmartSeq2") 1 else 0.25)
 
 saveRDS(de.out,file=sprintf("%s.de.out.rda",out.prefix))
