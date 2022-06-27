@@ -106,7 +106,7 @@ if(!is.null(opt.filter)){
 	#sce[[opt.group]] <- factor(as.character(sce[[opt.group]]),levels=group.levels)
 }
 
-if(!is.null(opt.filter)){
+if(!is.null(opt.keep)){
 	opt.keep.vec <- unlist(strsplit(opt.keep,":",perl=T))
     keep.col <- opt.keep.vec[1]
     keep.val <- opt.keep.vec[2]
