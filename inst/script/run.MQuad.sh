@@ -55,7 +55,7 @@ cellsnp-lite -s $inBam -b $inBarcode --outDir=$outDir --chrom=chrM --UMItag Auto
 
 mquad --cellData $outDir --outDir $outDir/mquad -p $optT --minDP 5
 
-$sDir/wrapper.vireoSNP.py -i $outDir/mquad -o $outDir/mquad/aaa/bb
+$sDir/wrapper.vireoSNP.py -i $outDir/mquad -o $outDir/mquad/vireo
 
 echo end at: `date`
 
