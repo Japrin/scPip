@@ -665,6 +665,84 @@ run.inte.metaClust <- function(exp.list.table,
     return(list("seu.merged"=seu.merged,"sce.merged"=sce.merged,"meta.tb"=meta.tb))
 }
 
+#' calculate effect size given a de.out object
+#' @importFrom sscClust effectsize
+#' @importFrom data.table as.data.table data.table `:=`
+#' @importFrom plyr llply
+#' @importFrom stats pt qnorm pnorm
+#' @importFrom RhpcBLASctl omp_set_num_threads
+#' @importFrom doParallel registerDoParallel
+#' @param de.out list; Three components are required: two data.table named "all" and "sig", a list named "fit"
+#' @param de.mode character; mode of differential expression analysis. (default: "multiAsTwo")
+#' @param ncores integer; number of CPU cores to use. (default: 8)
+#' @param cal.p logical; whether to calculate p-values assuming normal distribution on the z-scores (default: F)
+#' @return a list contain components, "es.tb" (data.table), "ncells.vec" and "ncells.control.vec" (integer vectors)
+#' @details calculate effect size given a de.out object
+#' @export
+calEffectSizeFromDE <- function(de.out,de.mode="multiAsTwo",ncores=8,cal.p=F)
+{
+    #### number of cells in each ClusterID
+    #de.out$all[1:2,]
+    ncells.control.vec <- NULL
+    if(de.mode=="multi"){
+        ncells.vec <- unlist(unique(as.data.table(de.out$all[,grep("^length\\.",
+                                       colnames(de.out$all),
+                                       value=T),with=F])))
+        names(ncells.vec) <- gsub("^length\\.","",names(ncells.vec))
+        ncell.df <- data.frame(ClusterID=names(ncells.vec),
+                           ncells=unname(ncells.vec))
+    }else if(de.mode=="multiAsTwo"){
+        ##unique(as.data.table(de.out$all[,c("cluster",grep("^length\\.",colnames(de.out$all),value=T)),with=F]))
+        ncell.df <- unique(as.data.table(de.out$all[,c("cluster","length._case"),with=F]))
+        ncell.control.df <- unique(as.data.table(de.out$all[,c("cluster","length._control"),with=F]))
+        if(nrow(ncell.df)==0 || nrow(ncell.control.df)==0){
+            cat(sprintf("%d, %s: sce constructed failed, no DE genes found!\n",i,de.limma.tb$data.id[i]))
+            return(NULL)
+        }
+        ncell.df <- merge(ncell.df,ncell.control.df,by="cluster")
+        colnames(ncell.df) <- c("ClusterID","ncells","ncells.control")
+        ncells.vec <- structure(ncell.df$ncells,names=ncell.df$ClusterID)
+        ncells.control.vec <- structure(ncell.df$ncells.control,names=ncell.df$ClusterID)
+    }
+
+    RhpcBLASctl::omp_set_num_threads(1)
+    doParallel::registerDoParallel(ncores)
+    
+    #### information from de.out$fit
+    geneID.mapping.tb <- unique(de.out$all[,c("geneID","geneSymbol"),with=F])
+    geneID.mapping.vec <- structure(geneID.mapping.tb$geneSymbol,names=geneID.mapping.tb$geneID)
+    es.tb <- as.data.table(ldply(names(ncells.vec),function(group.id){
+                         fit <- de.out$fit[[group.id]]
+                         n1i <- ncells.vec[group.id]
+                         if(de.mode=="multi"){
+                            n2i <- mean(ncells.vec[setdiff(names(ncells.vec),group.id)])
+                            ES <- effectsize(fit$t,((n1i*n2i)/(n1i+n2i)),(fit$df.prior+fit$df.residual))
+                            #### the p value report by limma is two side, cannot use it directly
+                            ###### pLimma=2*(pt(abs(fit$t),df=(fit$df.prior+fit$df.residual),lower.tail=F))
+                            ###### all( fit$p.value == pLimma[,1])
+                            #### convert one-sided P-values to z
+                            #zp <- qnorm(pt(fit$t,df=(fit$df.prior+fit$df.residual),lower.tail=F)[,1])
+                            zp <- qnorm(pt(-(fit$t),df=(fit$df.prior+fit$df.residual))[,1])
+                            #zp <- qnorm(fit$p.value*0.5)
+                         }else if(de.mode=="multiAsTwo"){
+                            #n2i <- sum(ncells.vec[setdiff(names(ncells.vec),group.id)])
+                            n2i <- ncells.control.vec[group.id]
+                            ES <- effectsize(fit$t[,"II",drop=F],((n1i*n2i)/(n1i+n2i)),(fit$df.prior+fit$df.residual))
+                            zp <- qnorm(pt(-(fit$t[,"II",drop=F]),df=(fit$df.prior+fit$df.residual))[,1])
+                         }
+
+                         ##print(all(rownames(ES)==names(zp)))
+                         out.tb <- data.table(geneSymbol=geneID.mapping.vec[rownames(ES)],cluster=group.id)
+                         out.tb <- cbind(out.tb,ES,zp)
+                         return(out.tb)
+                    },.parallel=T))
+    if(cal.p==T){
+        es.tb[,dprime.z:= dprime/sqrt(vardprime)]
+        es.tb[,dprime.p := 2 * (pnorm(-abs(dprime.z)))]
+    }
+    return(list("es.tb"=es.tb,"ncells.vec"=ncells.vec,"ncells.control.vec"=ncells.control.vec))
+}
+
 #' convert the limma result to gene by meta-cluster data stored in an SingleCellExperiment object
 #' @importFrom SingleCellExperiment rowData
 #' @importFrom SummarizedExperiment assay
@@ -731,59 +809,14 @@ convertLimmaToSCE <- function(de.limma.tb,out.prefix,ncores=8,
             #dfile <- de.limma.tb$dfile[i]
             #de.out <- readRDS(dfile)
             de.out <- gene.de.list[[id.d]]
-            #### number of cells in each ClusterID
-            #de.out$all[1:2,]
-            ncells.control.vec <- NULL
-            if(de.mode=="multi"){
-                ncells.vec <- unlist(unique(as.data.table(de.out$all[,grep("^length\\.",
-                                               colnames(de.out$all),
-                                               value=T),with=F])))
-                names(ncells.vec) <- gsub("^length\\.","",names(ncells.vec))
-                ncell.df <- data.frame(ClusterID=names(ncells.vec),
-                                   ncells=unname(ncells.vec))
-            }else if(de.mode=="multiAsTwo"){
-                ##unique(as.data.table(de.out$all[,c("cluster",grep("^length\\.",colnames(de.out$all),value=T)),with=F]))
-                ncell.df <- unique(as.data.table(de.out$all[,c("cluster","length._case"),with=F]))
-                ncell.control.df <- unique(as.data.table(de.out$all[,c("cluster","length._control"),with=F]))
-                if(nrow(ncell.df)==0 || nrow(ncell.control.df)==0){
-                    cat(sprintf("%d, %s: sce constructed failed, no DE genes found!\n",i,de.limma.tb$data.id[i]))
-                    next
-                }
-                ncell.df <- merge(ncell.df,ncell.control.df,by="cluster")
-                colnames(ncell.df) <- c("ClusterID","ncells","ncells.control")
-                ncells.vec <- structure(ncell.df$ncells,names=ncell.df$ClusterID)
-                ncells.control.vec <- structure(ncell.df$ncells.control,names=ncell.df$ClusterID)
-            }
+
+            #### 
+            es.list <- calEffectSizeFromDE(de.out,de.mode=de.mode,ncores=ncores)
+            if(is.null(es.list)) { next }
+            es.tb <- es.list[["es.tb"]]
+            ncells.vec <- es.list[["ncells.vec"]]
+            ncells.control.vec <- es.list[["ncells.control.vec"]]
             
-            #### information from de.out$fit
-            geneID.mapping.tb <- unique(de.out$all[,c("geneID","geneSymbol"),with=F])
-            geneID.mapping.vec <- structure(geneID.mapping.tb$geneSymbol,names=geneID.mapping.tb$geneID)
-            es.tb <- as.data.table(ldply(names(ncells.vec),function(group.id){
-                                 fit <- de.out$fit[[group.id]]
-                                 n1i <- ncells.vec[group.id]
-                                 if(de.mode=="multi"){
-                                    n2i <- mean(ncells.vec[setdiff(names(ncells.vec),group.id)])
-                                    ES <- effectsize(fit$t,((n1i*n2i)/(n1i+n2i)),(fit$df.prior+fit$df.residual))
-                                    #### the p value report by limma is two side, cannot use it directly
-                                    ###### pLimma=2*(pt(abs(fit$t),df=(fit$df.prior+fit$df.residual),lower.tail=F))
-                                    ###### all( fit$p.value == pLimma[,1])
-                                    #### convert one-sided P-values to z
-                                    #zp <- qnorm(pt(fit$t,df=(fit$df.prior+fit$df.residual),lower.tail=F)[,1])
-                                    zp <- qnorm(pt(-(fit$t),df=(fit$df.prior+fit$df.residual))[,1])
-                                    #zp <- qnorm(fit$p.value*0.5)
-                                 }else if(de.mode=="multiAsTwo"){
-                                    #n2i <- sum(ncells.vec[setdiff(names(ncells.vec),group.id)])
-                                    n2i <- ncells.control.vec[group.id]
-                                    ES <- effectsize(fit$t[,"II",drop=F],((n1i*n2i)/(n1i+n2i)),(fit$df.prior+fit$df.residual))
-                                    zp <- qnorm(pt(-(fit$t[,"II",drop=F]),df=(fit$df.prior+fit$df.residual))[,1])
-                                 }
-
-                                 ##print(all(rownames(ES)==names(zp)))
-                                 out.tb <- data.table(geneSymbol=geneID.mapping.vec[rownames(ES)],cluster=group.id)
-                                 out.tb <- cbind(out.tb,ES,zp)
-                                 return(out.tb)
-                            },.parallel=T))
-
             #### information from de.out$all
             ###gene.de.list[[id.d]] <- de.out$all
             ###gene.de.list[[id.d]]$geneID <- gene.de.list[[id.d]]$geneSymbol
