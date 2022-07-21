@@ -669,7 +669,7 @@ run.inte.metaClust <- function(exp.list.table,
 #' @importFrom sscClust effectsize
 #' @importFrom data.table as.data.table data.table `:=`
 #' @importFrom plyr llply
-#' @importFrom stats pt qnorm pnorm
+#' @importFrom stats pt qnorm pnorm p.adjust
 #' @importFrom RhpcBLASctl omp_set_num_threads
 #' @importFrom doParallel registerDoParallel
 #' @param de.out list; Three components are required: two data.table named "all" and "sig", a list named "fit"
@@ -734,12 +734,13 @@ calEffectSizeFromDE <- function(de.out,de.mode="multiAsTwo",ncores=8,cal.p=F)
                          ##print(all(rownames(ES)==names(zp)))
                          out.tb <- data.table(geneSymbol=geneID.mapping.vec[rownames(ES)],cluster=group.id)
                          out.tb <- cbind(out.tb,ES,zp)
+                         if(cal.p==T){
+                            out.tb[,dprime.z:= dprime/sqrt(vardprime)]
+                            out.tb[,dprime.p := 2 * (pnorm(-abs(dprime.z)))]
+                            out.tb[,dprime.padj:=p.adjust(dprime.p,"BH")]
+                         }
                          return(out.tb)
                     },.parallel=T))
-    if(cal.p==T){
-        es.tb[,dprime.z:= dprime/sqrt(vardprime)]
-        es.tb[,dprime.p := 2 * (pnorm(-abs(dprime.z)))]
-    }
     return(list("es.tb"=es.tb,"ncells.vec"=ncells.vec,"ncells.control.vec"=ncells.control.vec))
 }
 
