@@ -734,6 +734,7 @@ calEffectSizeFromDE <- function(de.out,de.mode="multiAsTwo",ncores=8,cal.p=F)
                          ##print(all(rownames(ES)==names(zp)))
                          out.tb <- data.table(geneSymbol=geneID.mapping.vec[rownames(ES)],cluster=group.id)
                          out.tb <- cbind(out.tb,ES,zp)
+                         out.tb <- out.tb[!is.na(geneSymbol),]
                          if(cal.p==T){
                             out.tb[,dprime.z:= dprime/sqrt(vardprime)]
                             out.tb[,dprime.p := 2 * (pnorm(-abs(dprime.z)))]
