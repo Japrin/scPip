@@ -5,7 +5,7 @@
 \title{Identification of T cells (simple average-threshold method)}
 \usage{
 inSilico.TCell(
-  sce,
+  obj,
   out.prefix,
   assay.name = "norm_exprs",
   vis.v = c(0.25, 0.5),
@@ -22,7 +22,7 @@ inSilico.TCell(
 )
 }
 \arguments{
-\item{sce}{object of \code{SingleCellExperiment}}
+\item{obj}{object of \code{SingleCellExperiment} or \code{AnnDataR6}}
 
 \item{out.prefix}{character; output prefix. (default: NULL)}
 
@@ -57,5 +57,5 @@ a SingleCellExperiment object
 Identification of T cells (simple average-threshold method)
 }
 \details{
-columns stype and gdType will be added to the sce
+columns stype and gdType will be added to the obj
 }

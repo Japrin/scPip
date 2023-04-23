@@ -662,6 +662,463 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
     return(list("seu"=seu,"sce"=sce))
 }
 
+#' Wraper for running scanpy pipeline
+#' @importFrom reticulate import
+#' @importFrom data.table data.table fread
+#' @importFrom S4Vectors DataFrame
+#' @importFrom sscVis loginfo
+#' @importFrom ggplot2 ggsave
+#' @importFrom cowplot plot_grid save_plot
+#' @importFrom RhpcBLASctl omp_set_num_threads
+#' @importFrom doParallel registerDoParallel
+#' @importFrom utils head str data
+#' @importFrom tictoc tic toc
+#' @param adata object of \code{AnnData}
+#' @param out.prefix character; output prefix
+#' @param gene.exclude.df data.frame; gene blak list. Required column: seu.id.
+#' @param n.top integer; number of top genes. (default: 1500)
+#' @param opt.res character; optimal resolution (default: "1")
+#' @param aid character; an ID (default: "PRJ")
+#' @param plot.rd character vector; reducedDimNames used for plots (default: c("umap"))
+#' @param opt.npc integer; optimal number of principal componets to use (default: 15)
+#' @param ncores integer; number of CPU cores to use (default: 16)
+#' @param res.test double; resolutions to test (default: seq(0.1,2.4,0.1) )
+#' @param cor.var character vector; Subset of c("S_score","G2M_score","DIG.Score","ISG.Score","percent.mito") or NULL. (default: c("S_score","G2M_score","DIG.Score","percent.mito")).
+#' @param ncell.deg integer; number of cell to downsample. used in the differentially expressed gene analysis. (default: 1500)
+#' @param do.deg logical; whether perform the differentially expressed gene analysis. (default: FALSE)
+#' @param hvg.batch.minNCells integer; required minimum number of cells in each batch. Batch with < hvg.batch.minNCells will not be used for HVG finding. (default: 100)
+#' @param use.harmony logical; whether use the harmony method. (default: TRUE)
+#' @param method.integration character; integration method. (default: NULL)
+#' @param specie character; specie, one of "human", "mouse". (default: "human")
+#' @param gene.mapping.table data.table; used for gene ID conversion. (default: NULL)
+#' @param res.addition character vector; additional resolution parameters. Internally, resolutions from 0.1 to 2.4 will be used. (default: NULL)
+#' @param run.stage integer; running stage. (default: 100)
+#' @return a list contain an object of \code{AnnData}
+#' @details run the scanpy pipeline
+#' @export
+run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
+			#measurement="counts",platform="10X",
+			opt.res="1",
+            #use.sctransform=F,
+            aid="PRJ",plot.rd=c("umap"),
+			opt.npc=15,ncores=16,
+            res.test=seq(0.1,2.4,0.1),
+            #do.adj=T,
+            ### remove this function: If certain variables are corrected (!is.null(cor.var) || cor.var!="NULL"), the pipeline will also correct for batchV and percent.mito
+            #cor.var=c("S_score","G2M_score","DIG.Score","percent.mito","batchV"),
+            cor.var=c("S_score","G2M_score","DIG.Score","percent.mito"),
+            ncell.deg=1500,do.deg=F,
+            hvg.batch.minNCells=100,
+            #do.scale=F,
+            use.harmony=T,
+            method.integration=NULL,
+            specie="human",
+			gene.mapping.table=NULL,res.addition=NULL,
+			run.stage=100)
+{
+
+    require("reticulate")
+    sc <- import("scanpy")
+    matplotlib <- import("matplotlib")
+    #matplotlib$use('Agg')
+    plt <- import("matplotlib.pyplot")
+    plt$switch_backend('Agg')
+    sc$settings$autoshow = FALSE
+    sc$set_figure_params(dpi=300,dpi_save=300,fontsize=12)
+
+    cat(sprintf("opt.res: %s\n",opt.res))
+
+    ###
+    if(is.null(gene.mapping.table)){
+        gene.mapping.table <- data.table(geneID=as.character(adata$var$gene_ids),
+                         seu.id=as.character(rownames(adata$var)),
+                         display.name=as.character(rownames(adata$var)))
+    }
+
+    ###### patch ######
+    if(!"percent.mito" %in% colnames(adata$obs))
+    {
+        idx.pmt <- grep("^(percent.mito|percent.mt)$",colnames(adata$obs),value=T,perl=T)
+        if(length(idx.pmt) > 0){ adata$obs$percent.mito <- adata$obs[,idx.pmt[1]] }
+    }
+    if(!"patient" %in% colnames(adata$obs))
+    {
+        idx.patient <- grep("^(patient|Patient|PatientID)$",colnames(adata$obs),value=T,perl=T)
+        if(length(idx.patient) > 0){
+            adata$obs$patient <- adata$obs[,idx.patient[1]]
+        }else{
+            adata$obs$patient <- "PXX"
+        }
+    }
+    if(!"batchV" %in% colnames(adata$obs)) { adata$obs$batchV <- adata$obs$patient }
+    ###################
+
+    nBatch <- length(table(adata$obs$batchV))
+    loginfo(sprintf("Total batchs: %d",nBatch))
+    print(str(table(adata$obs$batchV)))
+
+    #####
+    
+    RhpcBLASctl::omp_set_num_threads(1)
+    doParallel::registerDoParallel(cores = ncores)
+    
+    plot.general <- function(rd="umap")
+    {
+
+        ####
+        t.par <- list("loc"=c(4,5),
+                      "stype"=c(4,5),
+                      "cancerType"=c(4,5),
+                      "phase"=c(4,5),
+                      "S_score"=c(4,5),
+                      "G2M_score"=c(4,5),
+                      "total_counts"=c(4,5),
+                      "percent.mito"=c(4,5),
+                      "libraryID"=NULL,
+                      "patient"=NULL,
+                      "batchV"=NULL)
+        for(tt in names(t.par)){
+            if(!is.null(adata$obs[[tt]])){
+                if(tt %in% c("libraryID","patient","batchV")){
+                    if(length(unique(adata$obs$libraryID))>20){
+                        ###plt$figure(figsize=c(4.5,4), dpi=300)
+                        sp <- plt$subplots(figsize=c(10,4))
+                        sc$pl$umap(adata, color=c(tt),ax=sp[[2]])
+                    }else{
+                        ###plt$figure(figsize=c(5.0,4), dpi=300)
+                        sp <- plt$subplots(figsize=c(7.5,4))
+                        sc$pl$umap(adata, color=c(tt),ax=sp[[2]])
+                    }
+                }else{
+                    ##plt$figure(figsize=t.par[[tt]], dpi=300)
+                    sp <- plt$subplots(figsize=c(5,4))
+                    sc$pl$umap(adata, color=c(tt),ax=sp[[2]])
+                }
+                plt$tight_layout()
+                plt$savefig(sprintf("%s.%s.%s.png",out.prefix,rd,tt))
+            }
+        }
+
+        #### gene on umap
+        loginfo(sprintf("bein plotting geneOnUmap ..."))
+        l_ply(seq_along(g.geneOnUmap.list),function(i){
+            gene.tmp <- intersect(g.geneOnUmap.list[[i]],rownames(adata$var))
+            loginfo(sprintf("(begin) geneSet %s",names(g.geneOnUmap.list)[i]))
+            if(length(gene.tmp)>0){
+
+                adata.plot <- adata[,rownames(adata$var) %in% gene.tmp]
+                sc$pp$scale(adata.plot)
+                plt$figure(figsize=c(3.5,4), dpi=300)
+                ##sc$pl$umap(adata, ncols=as.integer(3), color=gene.tmp,vmin="p05",vmax="p95",frameon=F)
+                sc$pl$umap(adata.plot, ncols=as.integer(3), color=gene.tmp, color_map="YlOrRd", vmin=-1,vmax=5, frameon=F)
+                plt$savefig(sprintf("%s.%s.marker.%s.png",out.prefix,rd,names(g.geneOnUmap.list)[i]))
+
+                adata.plot <- NULL
+                gc()
+
+            }
+            loginfo(sprintf("(end) geneSet %s",names(g.geneOnUmap.list)[i]))
+        },.parallel=F)
+        loginfo(sprintf("end plotting geneOnUmap."))
+
+        ### density
+        ### "percent.mito"
+        ### "nCount_RNA"
+        ### "nFeature_RNA"
+    
+    }
+
+    plot.resolution <- function(rd="umap",resolution.vec=seq(0.1,2.4,0.1))
+    {
+        #### 
+        for(i in seq_len(length(resolution.vec)/4))
+        {
+            plt$figure(figsize=c(5,4), dpi=300)
+            sc$pl$umap(adata, ncols=as.integer(2), color=sprintf("leiden.%s",resolution.vec[((i-1)*4+1):(i*4)]))
+            plt$savefig(sprintf("%s.%s.res.%d.png",out.prefix,rd,i))
+        }
+    }
+
+
+
+    old.par <- NULL
+    if(file.exists(sprintf("%s.run.par.txt",out.prefix))){
+	    old.par <- fread(sprintf("%s.run.par.txt",out.prefix))
+    }
+    write.table(data.frame(opt.res=opt.res),
+		file=sprintf("%s.run.par.txt",out.prefix),row.names=F,quote=F,sep="\t")
+
+    if(file.exists(sprintf("%s.scanpy.h5ad",out.prefix)))
+    {
+        loginfo(sprintf("loading pre-calculated result ..."))
+        adata <- sc$read_h5ad(sprintf("%s.scanpy.h5ad",out.prefix))
+        if(old.par$opt.res==opt.res){
+            return(list("adata"=adata))
+        }
+    }else
+    {
+
+        if(file.exists(sprintf("%s.scanpy.step1.h5ad",out.prefix)))
+        {
+            loginfo(sprintf("loading h5ad without clustering  ..."))
+            adata <- sc$read_h5ad(sprintf("%s.scanpy.step1.h5ad",out.prefix))
+        }else{
+            loginfo(sprintf("running scanpy pipeline ..."))
+
+            if(!is.null(gene.exclude.df) && !("S_score" %in% cor.var) && !("G2M_score" %in% cor.var)){
+                gene.exclude.df <- gene.exclude.df[!(category %in% c("cellCycle/proliferation")),]
+            }
+
+            #### variable genes
+            {
+                ###sc$pp$highly_variable_genes(adata)
+                ### if flavor="seurat_v3", count data is expected
+                
+                adata_tmp <- NULL
+                my.flavor <- "seurat"
+                if(my.flavor=="seurat_v3"){
+                    adata_tmp <- adata$raw$to_adata()
+                    sc$pp$filter_genes(adata_tmp, min_cells=3)
+                }else{
+                    adata_tmp <- adata
+                }
+                cellDistLib.vec <- sort(unclass(table(adata_tmp$obs$libraryID)),decreasing=T)
+                f.lib <- names(cellDistLib.vec)[cellDistLib.vec > hvg.batch.minNCells]
+                adata_tmp <- adata_tmp[adata_tmp$obs$libraryID %in% f.lib]
+                f.gene <- rownames(adata_tmp$var) %in% gene.exclude.df[["geneSymbol"]] |
+                            (grepl("^(RP[LS]|Rp[ls])",rownames(adata_tmp$var),perl=T))
+                adata_tmp <- adata_tmp[,!f.gene]
+                sc$pp$highly_variable_genes(adata_tmp,flavor=my.flavor,n_top_genes=as.integer(n.top),batch_key="batchV")
+                hvg.glist <- rownames(adata_tmp$var)[adata_tmp$var$highly_variable]
+
+                #sc$pp$highly_variable_genes(adata_countData,flavor="seurat_v3",n_top_genes=100000L,batch_key="batchV")
+                #sc$pp$highly_variable_genes(adata,flavor="seurat",n_top_genes=100000L,batch_key="batchV")
+                #adata_countData$var$inBlkGList <- (rownames(adata_countData$var) %in% c(gene.exclude.df[["geneSymbol"]],
+                #                                                    "MALAT1","MALAT1-ENSG00000251562","Malat1",
+                #                                                    "MALAT1-ENSG00000279576","MALAT1-ENSG00000278217")) |
+                #                        (grepl("^(RP[LS]|Rp[ls])",rownames(adata_countData$var),perl=T))
+                #hvg.gene.info <- as.data.table(adata_countData$var,keep.rownames="geneSymbol")
+                #hvg.glist <- head(hvg.gene.info[order(-variances_norm),][inBlkGList==F,][["geneSymbol"]],n.top)
+                #print("all(rownames(adata_countData$var)==rownames(adata$var))")
+                #print(all(rownames(adata_countData$var)==rownames(adata$var)))
+                #for(xx in c("highly_variable","highly_variable_rank","means","variances","variances_norm","inBlkGList")){
+                #    adata$var[[xx]] <- adata_countData$var[[xx]]
+                #}
+
+                adata$var$highly_variable <- rownames(adata$var) %in% hvg.glist
+
+                adata_tmp <- NULL
+                gc()
+
+            }
+
+            ##### calculate some scores
+            adj.cov <- cor.var
+            if(adj.cov[1]=="NULL") { adj.cov <- NULL }
+            if(!is.null(adj.cov)){
+                loginfo(sprintf("CellCycleScoring ..."))
+                a.env <- new.env()
+                if(specie=="human"){
+                    data("cc.genes",package="Seurat",envir=a.env)
+                }else{
+                    data("cc.genes.mouse",package="scPip",envir=a.env)
+                }
+
+                ##sc$pp$scale(adata)
+                sc$tl$score_genes_cell_cycle(adata,
+                                             s_genes=a.env[["cc.genes"]][["s.genes"]],
+                                             g2m_genes=a.env[["cc.genes"]][["g2m.genes"]])
+                ####seu$CC.Difference <- seu$S.Score - seu$G2M.Score
+                
+                loginfo(sprintf("AddModuleScore ..."))
+                dat.ext.dir <- system.file("extdata",package="scPip")
+                glist.HSP <- fread(sprintf("%s/byZhangLab.stress.glist.gz",dat.ext.dir))$geneSymbol
+                glist.HSP <- intersect(glist.HSP,rownames(adata$var))
+                sc$tl$score_genes(adata,gene_list=glist.HSP,score_name="DIG.Score",ctrl_size=length(glist.HSP))
+
+                glist.ISG <- fread(sprintf("%s/ISG.MSigDB.BROWNE_INTERFERON_RESPONSIVE_GENES.detected.glist.gz",dat.ext.dir))$geneSymbol
+                sc$tl$score_genes(adata,gene_list=glist.ISG,score_name="ISG.Score",ctrl_size=length(glist.ISG))
+
+                ### remove this function: if correct something, always correct for batchV and percent.mito
+                ###if("percent.mito" %in% colnames(seu[[]])){
+                ###    adj.cov <- c(adj.cov,"percent.mito")
+                ###}
+                ###if(nBatch>1){
+                ###    adj.cov <- c(adj.cov,c("batchV"))
+                ###}
+                if(!("percent.mito" %in% colnames(adata$obs))){
+                    adj.cov <- setdiff(adj.cov,"percent.mito")
+                }
+                if(!(nBatch>1)){
+                    adj.cov <- setdiff(adj.cov,c("batchV"))
+                }
+
+                adata$obs$batchV <- as.character(adata$obs$batchV)
+
+                loginfo(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
+                print(head(adata$obs,n=4))
+
+            }
+
+            #####
+            {
+                adata_hvg <- adata[,adata$var$highly_variable==TRUE]
+            }
+
+            #####
+            if(!is.null(adj.cov)){
+                loginfo(sprintf("regress_out ..."))
+                tic("regress_out")
+                sc$pp$regress_out(adata_hvg, adj.cov)
+                toc()
+
+            }
+
+            tic("scale")
+            sc$pp$scale(adata_hvg)
+            toc()
+
+            ##sc$tl$pca(adata_hvg, svd_solver='arpack',n_comps=as.integer(opt.npc))
+            sc$tl$pca(adata_hvg, svd_solver='arpack')
+
+            adata$obsm[["X_pca"]] <- adata_hvg$obsm[["X_pca"]]
+            npc <- ncol(adata$obsm[["X_pca"]])
+            adata$obsm[["X_pca_top"]] <- adata$obsm[["X_pca"]][,seq_len(min(opt.npc,npc)),drop=F]
+
+            adata_hvg <- NULL
+            gc()
+
+            loginfo(sprintf("use.harmony: %s",use.harmony))
+            use.rd <- "X_pca_top"
+            tic("neighbors ...")
+            if(use.harmony || (!is.null(method.integration) && method.integration=="Harmony")){
+                sc$external$pp$harmony_integrate(adata, "batchV",basis=use.rd,max_iter_harmony=30L)
+                sc$pp$neighbors(adata, n_neighbors=as.integer(20), n_pcs=opt.npc,use_rep="X_pca_harmony")
+            }else{
+                sc$pp$neighbors(adata, n_neighbors=as.integer(20), n_pcs=opt.npc,use_rep=use.rd)
+            }
+            toc()
+
+            tic("umap ...")
+            sc$tl$umap(adata)
+            toc()
+            
+            adata$write_h5ad(sprintf("%s.scanpy.step1.h5ad",out.prefix))
+
+            plot.general()
+       
+        }
+
+        #### clustring
+        #res.test <- seq(0.1,2.4,0.1)
+
+        tic("leiden ...")
+        res.cls <- llply(res.test,function(res.i){
+
+                  tic(sprintf("____ leiden with resolution %s ...",res.i))
+                  ###adata.i <- adata[,adata$var$highly_variable==TRUE]
+                  adata.i <- adata[,1:10]
+                  sc$tl$leiden(adata.i, resolution=res.i)
+                  cls.i <- sprintf("C%02d",adata.i$obs[["leiden"]])
+                  toc()
+
+                  adata.i <- NULL
+                  gc()
+
+                  return(cls.i)
+                                         },.parallel=T)
+        names(res.cls) <- sprintf("leiden.%s",res.test)
+        for(xx in names(res.cls)){
+            adata$obs[[xx]] <- res.cls[[xx]]
+        }
+        toc()
+
+        adata$obs[["ClusterID"]] <- adata$obs[[sprintf("leiden.%s",opt.res)]]
+
+        ##### save result
+        adata$write_h5ad(sprintf("%s.scanpy.h5ad",out.prefix))
+        cat(sprintf("data saved!\n"))
+
+        plot.resolution(resolution.vec=res.test)
+
+    }
+
+    #####
+    {
+
+        adata$obs[["ClusterID"]] <- adata$obs[[sprintf("leiden.%s",opt.res)]]
+        ###plt$figure(figsize=c(4,5), dpi=300)
+        sp <- plt$subplots(figsize=c(5,4))
+        sc$pl$umap(adata, color="ClusterID",ax=sp[[2]])
+        plt$tight_layout()
+        plt$savefig(sprintf("%s.%s.%s.png",out.prefix,"umap","ClusterID"))
+        
+    }
+
+    #############################
+    ## violin
+    if(F)
+    {
+        nCls <- length(table(adata$obs$ClusterID))
+        l_ply(seq_along(g.geneOnUmap.list),function(i){
+            gene.tmp <- intersect(g.geneOnUmap.list[[i]],rownames(adata$var))
+            glist.i <- g.geneOnUmap.list[i]
+            glist.i[[1]] <- gene.tmp
+            if(length(gene.tmp)>0){
+                    
+                adata.plot <- adata[,rownames(adata$var) %in% gene.tmp]
+                #sc$pp$scale(adata.plot)
+                plt$figure(figsize=c(8,8), dpi=300)
+                ###sc$pl$umap(adata, ncols=as.integer(3), color=gene.tmp,vmax="p99",frameon=F)
+                ##sc$pl$stacked_violin(adata.plot, glist.i, groupby='ClusterID',swap_axes=F,vmin=-1,vmax=5)
+                sc$pl$stacked_violin(adata.plot, glist.i, groupby='ClusterID',swap_axes=F,vmin=0,vmax=8)
+                plt$savefig(sprintf("%s.violin.marker.%s.png",out.prefix,names(glist.i)))
+
+                adata.plot <- NULL
+                gc()
+
+            }
+        },.parallel=F)
+    }
+
+    if(do.deg)
+    {
+        dir.create(sprintf("%s/deg",dirname(out.prefix)),F,T)
+
+        tic("deg")
+        sc$tl$rank_genes_groups(adata,'ClusterID', method='t-test',use_raw=F)
+        #sc$tl$rank_genes_groups(adata,'ClusterID', method='t-test',groups=list('C12'),use_raw=F)
+        toc()
+
+        dedf = sc$get$rank_genes_groups_df(adata,group=NULL)
+        saveRDS(dedf,file=sprintf("%s.scanpy.deg.ttest.rds",out.prefix)) 
+        ###adata$write_h5ad(sprintf("%s.scanpy.wDEG.h5ad",out.prefix))
+
+        ###plt$figure(figsize=c(5,4), dpi=300)
+        sp <- plt$subplots(figsize=c(5,4))
+        sc$pl$rank_genes_groups(adata, n_genes=25L, sharey=FALSE,ax=sp[[2]])
+        plt$savefig(sprintf("%s.deg.marker.%s.png",out.prefix,"00"))
+
+#
+#        tic("limma")
+#        de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,ncell.downsample=ncell.deg,
+#                       group.var="ClusterID",batch=if(nBatch>1) "batchV" else NULL,
+#                       out.prefix=sprintf("%s/limma/%s",
+#                                  dirname(out.prefix),basename(out.prefix)),
+#                       n.cores=ncores,verbose=3, group.mode="multiAsTwo",
+#                       T.logFC=if(platform=="SmartSeq2") 1 else 0.25)
+#        toc()
+#
+#        saveRDS(de.out,file=sprintf("%s.de.out.limma.rda",
+#                        sprintf("%s/limma/%s",
+#                            dirname(out.prefix),
+#                            basename(out.prefix))))
+    }
+
+    return(list("adata"=adata))
+
+}
+
 #' Wraper for running Scanorama 
 #' @importFrom Seurat CreateSeuratObject SetAssayData GetAssayData CellCycleScoring AddModuleScore ScaleData SCTransform RunPCA ProjectDim RunUMAP RunTSNE FindNeighbors FindClusters Embeddings DimPlot NoLegend
 #' @importFrom SingleCellExperiment `reducedDim<-`
@@ -842,7 +1299,7 @@ inSilico.TGammaDelta <- function(obj,out.prefix=NULL,assay.name="norm_exprs",vis
 #' @importFrom data.table setDT
 #' @importFrom ggpubr ggdensity
 #' @importFrom ggplot2 ggplot geom_density theme_bw theme geom_vline facet_wrap ggsave
-#' @param sce object of \code{SingleCellExperiment}
+#' @param obj object of \code{SingleCellExperiment} or \code{AnnDataR6}
 #' @param out.prefix character; output prefix. (default: NULL)
 #' @param assay.name character vector; which assay to use. (default: "norm_exprs").
 #' @param vis.v double vector; for vertical lines in visulization. (default: c(0.25,0.5)).
@@ -857,9 +1314,9 @@ inSilico.TGammaDelta <- function(obj,out.prefix=NULL,assay.name="norm_exprs",vis
 #' @param do.zscore logical; whether use zscore for calculation. (default: FALSE)
 #' @param do.rescue logical; whether use "rescue" mode. (default: FALSE)
 #' @return a SingleCellExperiment object
-#' @details columns stype and gdType will be added to the sce
+#' @details columns stype and gdType will be added to the obj 
 #' @export
-inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25,0.5),
+inSilico.TCell <- function(obj, out.prefix, assay.name="norm_exprs",vis.v=c(0.25,0.5),
                            Th.CD3=0.25,Th.CD8=0.5,Th.CD4=0.5,Th.TH=0.25,Th.TR=0.25,do.zscore=F,
 			   Th.DC=0.25,Th.GC1=0.25,Th.GC2=0.25,
 			   do.rescue=T)
@@ -871,20 +1328,31 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
     ##gene.to.test <- c("CD4","CD8A","CD8B","CD3D","CD3E","CD3G","CD40LG","FOXP3","IL2RA")
     gene.to.test <- c("CD4","CD8A","CD8B","CD3D","CD3G","CD40LG","FOXP3","IL2RA",
 		      "TRDC","TRGC1","TRGC2")
-    f.gene <- which(rowData(sce)$display.name %in% gene.to.test)
-    if(do.zscore){
-	sce.z <- sce[f.gene,]
-	sce.z <- ssc.scale(sce.z,gene.symbol=gene.to.test,assay.name=assay.name,
-			   adjB="batchV",do.scale=T)
-	gene.to.test <- structure(rowData(sce.z)$display.name,names=rownames(sce.z))
-	gene.to.test <- gene.to.test[order(gene.to.test)]
-	dat.plot <- as.data.frame(t(as.matrix(assay(sce.z,sprintf("%s.scale",assay.name))[names(gene.to.test),])))
-	colnames(dat.plot) <- gene.to.test
-    }else{
-	gene.to.test <- structure(rowData(sce)$display.name[f.gene],names=rownames(sce)[f.gene])
-	gene.to.test <- gene.to.test[order(gene.to.test)]
-	dat.plot <- as.data.frame(t(as.matrix(assay(sce,assay.name)[names(gene.to.test),])))
-	colnames(dat.plot) <- gene.to.test
+
+    dat.plot <- NULL
+    if(class(obj)[1]=="SingleCellExperiment"){
+        f.gene <- which(rowData(obj)$display.name %in% gene.to.test)
+
+        if(do.zscore){
+            obj.z <- obj[f.gene,]
+            obj.z <- ssc.scale(obj.z,gene.symbol=gene.to.test,assay.name=assay.name,
+                       adjB="batchV",do.scale=T)
+            gene.to.test <- structure(rowData(obj.z)$display.name,names=rownames(obj.z))
+            gene.to.test <- gene.to.test[order(gene.to.test)]
+            dat.plot <- as.data.frame(t(as.matrix(assay(obj.z,sprintf("%s.scale",assay.name))[names(gene.to.test),])))
+            colnames(dat.plot) <- gene.to.test
+        }else{
+            gene.to.test <- structure(rowData(obj)$display.name[f.gene],names=rownames(obj)[f.gene])
+            gene.to.test <- gene.to.test[order(gene.to.test)]
+            dat.plot <- as.data.frame(t(as.matrix(assay(obj,assay.name)[names(gene.to.test),])))
+            colnames(dat.plot) <- gene.to.test
+        }
+
+    }else if(class(obj)[1]=="AnnDataR6"){
+        f.gene <- which(rownames(obj$var) %in% gene.to.test)
+        obj.tmp <- obj[,f.gene]
+        if(do.zscore){ sc$pp$scale(obj.tmp) }
+        dat.plot <- as.data.frame(as.matrix(obj.tmp$X))
     }
 
     ##dat.plot[,"CD3"] <- apply(dat.plot[,c("CD3D","CD3E","CD3G")],1,mean)
@@ -908,53 +1376,60 @@ inSilico.TCell <- function(sce, out.prefix, assay.name="norm_exprs",vis.v=c(0.25
 	theme(legend.position="none")
     ggsave(sprintf("%s.inSiliso.marker.density.pdf",out.prefix),width=7,height=6)
 
-    sce$stype <- "unknown"
-    #sce$stype[dat.plot[,"CD3"] < 0.25] <- "noCD3"
-    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
-	      dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] < Th.CD4] <- "CD8"
-    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
-	      dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "DP"
-    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
-	      dat.plot[,"CD8"] < Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "CD4"
-    sce$stype[dat.plot[,"CD3"] > Th.CD3 &
-	      dat.plot[,"CD8"] < Th.CD8 & dat.plot[,"CD4"] < Th.CD4] <- "DN"
-    sce$stype.strict <- sce$stype
+    stype.vec <- rep("unknown",nrow(dat.plot))
+    stype.vec[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] <= Th.CD4] <- "CD8"
+    stype.vec[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] > Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "DP"
+    stype.vec[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] <= Th.CD8 & dat.plot[,"CD4"] > Th.CD4] <- "CD4"
+    stype.vec[dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"CD8"] <= Th.CD8 & dat.plot[,"CD4"] <= Th.CD4] <- "DN"
+    stype.strict.vec <- stype.vec
 
     #####
     has.gd.gene <- F
+    x.gdType <- NULL
     if(all(c("TRDC","TRGC1","TRGC2") %in% colnames(dat.plot))){
-        x.gdType <- rep("unknown",ncol(sce))
+        x.gdType <- rep("unknown",nrow(dat.plot))
         x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC  ] <- "undetermined"
         x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
-             (dat.plot[,"TRGC1"] > Th.GC1 & dat.plot[,"TRGC2"] < Th.GC2 )  ] <- "delta2"
+             (dat.plot[,"TRGC1"] > Th.GC1 & dat.plot[,"TRGC2"] <= Th.GC2 )  ] <- "delta2"
         x.gdType[ dat.plot[,"CD3"] > Th.CD3 & dat.plot[,"TRDC"] > Th.DC &
-             (dat.plot[,"TRGC1"] < Th.GC1 & dat.plot[,"TRGC2"] > Th.GC2 )  ] <- "delta1"
-        sce$gdType <- x.gdType
+             (dat.plot[,"TRGC1"] <= Th.GC1 & dat.plot[,"TRGC2"] > Th.GC2 )  ] <- "delta1"
         has.gd.gene <- T
     }else{
         warning(sprintf("There are no gd genes found in the data\n"))
     }
     #####
 
-    f.cell <- sce$stype=="DN" & (dat.plot[,"TH"] > Th.TH | dat.plot[,"TR"] > Th.TR)
-    ###f.cell <- sce$stype=="DN" & dat.plot[,"CD4"] > 0 & (dat.plot[,"TH"] > Th.TH | dat.plot[,"TR"] > Th.TR)
-    #print(table(sce$stype))
+    f.cell <- stype.vec=="DN" & (dat.plot[,"TH"] > Th.TH | dat.plot[,"TR"] > Th.TR)
+    ###f.cell <- obj$stype=="DN" & dat.plot[,"CD4"] > 0 & (dat.plot[,"TH"] > Th.TH | dat.plot[,"TR"] > Th.TR)
+    #print(table(obj$stype))
     cat(sprintf("numbe of cells can be rescued: %d\n",sum(f.cell)))
+    stype.rescue.vec <- NULL
     if(do.rescue){
-	### todo: add requirement: DN and not gamma delta T ?
-	sce$stype[f.cell] <- "CD4"
-	sce$stype.rescue <- sce$stype
+        ### todo: add requirement: DN and not gamma delta T ?
+        stype.rescue.vec <- stype.vec 
+        stype.rescue.vec[f.cell] <- "CD4"
     }
 
-    ####write.table(colData(sce),sprintf("%s.cellInfo.txt",out.prefix),row.names=F,sep="\t",quote=F)
-    return(sce)
+    if(class(obj)[1]=="SingleCellExperiment"){
+        obj$stype <- stype.vec
+        obj$stype.strict <- stype.strict.vec
+        obj$gdType <- x.gdType
+        obj$stype.rescue <- stype.rescue.vec
+    }else if(class(obj)[1]=="AnnDataR6"){
+        obj$obs$stype <- stype.vec
+        obj$obs$stype.strict <- stype.strict.vec
+        obj$obs$stype.rescue <- stype.rescue.vec
+    }
+
+    ####write.table(colData(obj),sprintf("%s.cellInfo.txt",out.prefix),row.names=F,sep="\t",quote=F)
+    return(obj)
 }
 
 #' calculate the signature score of one potential contaminated cell types (simple average-threshold method)
 #' @importFrom SummarizedExperiment assay `colData<-`
 #' @importFrom Seurat GetAssayData
 #' @importFrom data.table data.table melt
-#' @importFrom Matrix colMeans
+#' @importFrom Matrix colMeans rowMeans
 #' @importFrom ggplot2 ggplot geom_density geom_vline facet_wrap ggsave aes_string
 #' @importFrom ggpubr theme_pubr
 #' @param obj object of \code{SingleCellExperiment} or \code{Seurat}
@@ -973,10 +1448,10 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
 {
     #require("ggplot2")
     #require("data.table")
-    ##### plasma contamination
+    #require("Matrix")
+    sigSize <- length(g.test)
+    g.test.i <- g.test
     if(class(obj)[1]=="SingleCellExperiment"){
-        sigSize <- length(g.test)
-        g.test.i <- g.test
         g.test <- ssc.displayName2id(obj, display.name = g.test)
         if(length(g.test) < sigSize){
             warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test.i,collapse=",")))
@@ -989,8 +1464,6 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
         colData(obj)[[sprintf("%s.score",g.name)]] <- Sig.Score.tb$Sig.Score
         colData(obj)[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
     }else if(class(obj)[1]=="Seurat"){
-        sigSize <- length(g.test)
-        g.test.i <- g.test
         g.test <- intersect(g.test,rownames(obj))
         if(length(g.test) < sigSize){
             warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test.i,collapse=",")))
@@ -1001,6 +1474,17 @@ fill.contamination <- function(obj,out.prefix,assay.name="norm_exprs",
         Sig.Score.tb <- cbind(Sig.Score.tb,t(as.matrix(exp.data)))
         obj[[sprintf("%s.score",g.name)]] <- Sig.Score.tb$Sig.Score
         obj[[sprintf("%s.class",g.name)]] <- obj[[sprintf("%s.score",g.name)]] > score.t
+    }else if(class(obj)[1]=="AnnDataR6"){
+        g.test <- intersect(g.test,rownames(obj$var))
+        if(length(g.test) < sigSize){
+            warning(sprintf("it seems some genes of %s are not in the data.",paste(g.test.i,collapse=",")))
+            return(obj)
+        }
+        obj.tmp <- obj[,rownames(obj$var) %in% g.test]
+        Sig.Score.tb <- data.table(cell=rownames(obj.tmp$obs),Sig.Score=Matrix::rowMeans(obj.tmp$X))
+        Sig.Score.tb <- cbind(Sig.Score.tb,(as.matrix(obj.tmp$X)))
+        obj$obs[[sprintf("%s.score",g.name)]] <- Sig.Score.tb$Sig.Score
+        obj$obs[[sprintf("%s.class",g.name)]] <- obj$obs[[sprintf("%s.score",g.name)]] > score.t
     }else{
         return(obj)
     }

@@ -149,6 +149,7 @@ n.group.flt <- n.group[n.group>=2]
 print(n.group.flt)
 
 sce <- sce[,sce[[opt.group]] %in% names(n.group.flt)]
+sce[[opt.group]] <- make.names(sce[[opt.group]])
 
 nBatch <- length(table(colData(sce)[[opt.batch]]))
 
