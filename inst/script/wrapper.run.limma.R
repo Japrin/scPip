@@ -78,8 +78,11 @@ library("reticulate")
 options(stringsAsFactors = FALSE)
 
 ######################
-
-if(grepl("\\.rds$",sce.file)){
+if(grepl(".h5ad$",sce.file)){
+    sce <- zellkonverter::readH5AD(sce.file)
+    assay(sce,"norm_exprs") <- assay(sce,"X")
+    rowData(sce)$display.name <- rownames(sce)
+}else if(grepl("\\.rds$",sce.file)){
 	##seu <- readRDS(seu.file)
 	sce <- readRDS(sce.file)
 }else{
