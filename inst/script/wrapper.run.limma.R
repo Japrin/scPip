@@ -79,7 +79,10 @@ options(stringsAsFactors = FALSE)
 
 ######################
 if(grepl(".h5ad$",sce.file)){
-    sce <- zellkonverter::readH5AD(sce.file)
+    ### use systemic path of python
+    sce <- zellkonverter:::.H5ADreader(sce.file)
+    ### use ~/.cache/R/basilisk/1.4.0/zellkonverter/...
+    #sce <- zellkonverter::readH5AD(sce.file)
     assay(sce,"norm_exprs") <- assay(sce,"X")
     rowData(sce)$display.name <- rownames(sce)
 }else if(grepl("\\.rds$",sce.file)){
