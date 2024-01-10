@@ -176,17 +176,28 @@ if(!is.null(seu) && !is.null(opt.filterout)){
 	}
 }
 
-if(!is.null(seu) && !is.null(opt.keep)){
-	if(!file.exists(opt.keep)){
-		col.keep <- unlist(strsplit(opt.keep,":"))[1]
-		col.value <- unlist(strsplit(unlist(strsplit(opt.keep,":"))[2],","))
-        if(col.keep %in% colnames(seu[[]])){
-            cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
-            f.cell <- seu[[]][,col.keep] %in% col.value
-            print(summary(f.cell))
-            seu <- seu[,f.cell]
-        }else{
-            warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
+if(!is.null(opt.keep)){
+    col.keep <- unlist(strsplit(opt.keep,":"))[1]
+    col.value <- unlist(strsplit(unlist(strsplit(opt.keep,":"))[2],","))
+    if(!file.exists(opt.keep)){
+        if(!is.null(seu)){
+            if(col.keep %in% colnames(seu[[]])){
+                cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
+                f.cell <- seu[[]][,col.keep] %in% col.value
+                print(summary(f.cell))
+                seu <- seu[,f.cell]
+            }else{
+                warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
+            }
+        }else if(!is.null(sce)){
+            if(col.keep %in% colnames(colData(sce))){
+                cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
+                f.cell <- colData(sce)[,col.keep] %in% col.value
+                print(summary(f.cell))
+                sce <- sce[,f.cell]
+            }else{
+                warning(sprintf("The meta-data doesnot contain %s\n",col.keep))
+            }
         }
     }
 }
