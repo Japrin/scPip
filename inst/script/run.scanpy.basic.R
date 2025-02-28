@@ -141,7 +141,7 @@ if(!is.null(adata) && !is.null(opt.filterout)){
 		col.value <- unlist(strsplit(unlist(strsplit(opt.filterout,":"))[2],","))
         if(col.filter %in% colnames(adata$obs)){
             cat(sprintf("filter cells with %s in c(%s)\n",col.filter,paste(col.value,collapse=",")))
-            if(grepl("^(>|<|=)",col.value)){
+            if(length(col.value)==1 && grepl("^(>|<|=)",col.value)){
                 f.cell <- eval(parse(text=sprintf("adata$obs[,\'%s\'] %s",col.filter,col.value)))
             }else{
                 f.cell <- adata$obs[,col.filter] %in% col.value
@@ -161,7 +161,7 @@ if(!is.null(adata) && !is.null(opt.keep)){
 		col.value <- unlist(strsplit(unlist(strsplit(opt.keep,":"))[2],","))
         if(col.keep %in% colnames(adata$obs)){
             cat(sprintf("keep only cells with %s in c(%s)\n",col.keep,paste(col.value,collapse=",")))
-            if(grepl("^(>|<|=)",col.value)){
+            if(length(col.value)==1 && grepl("^(>|<|=)",col.value)){
                 f.cell <- eval(parse(text=sprintf("adata$obs[,\'%s\'] %s",col.keep,col.value)))
             }else{
                 f.cell <- adata$obs[,col.keep] %in% col.value

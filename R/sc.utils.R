@@ -680,7 +680,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 #' @param opt.res character; optimal resolution (default: "1")
 #' @param aid character; an ID (default: "PRJ")
 #' @param plot.rd character vector; reducedDimNames used for plots (default: c("umap"))
-#' @param opt.npc integer; optimal number of principal componets to use (default: 15)
+#' @param opt.npc integer; optimal number of principal componets to use (default: 15L)
 #' @param ncores integer; number of CPU cores to use (default: 16)
 #' @param res.test double; resolutions to test (default: seq(0.1,2.4,0.1) )
 #' @param cor.var character vector; Subset of c("S_score","G2M_score","DIG.Score","ISG.Score","percent.mito") or NULL. (default: c("S_score","G2M_score","DIG.Score","percent.mito")).
@@ -690,6 +690,7 @@ run.Seurat3 <- function(seu,sce,out.prefix,gene.exclude.df,n.top=1500,
 #' @param use.harmony logical; whether use the harmony method. (default: TRUE)
 #' @param method.integration character; integration method. (default: NULL)
 #' @param specie character; specie, one of "human", "mouse". (default: "human")
+#' @param max_iter_harmony integer; max_iter_harmony of sc$external$pp$harmony_integrate(). (default: 30L)
 #' @param gene.mapping.table data.table; used for gene ID conversion. (default: NULL)
 #' @param res.addition character vector; additional resolution parameters. Internally, resolutions from 0.1 to 2.4 will be used. (default: NULL)
 #' @param run.stage integer; running stage. (default: 100)
@@ -701,7 +702,7 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
 			opt.res="1",
             #use.sctransform=F,
             aid="PRJ",plot.rd=c("umap"),
-			opt.npc=15,ncores=16,
+			opt.npc=15L,ncores=16,
             res.test=seq(0.1,2.4,0.1),
             #do.adj=T,
             ### remove this function: If certain variables are corrected (!is.null(cor.var) || cor.var!="NULL"), the pipeline will also correct for batchV and percent.mito
@@ -713,6 +714,7 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
             use.harmony=T,
             method.integration=NULL,
             specie="human",
+            max_iter_harmony=30L,
 			gene.mapping.table=NULL,res.addition=NULL,
 			run.stage=100)
 {
@@ -729,11 +731,11 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
     cat(sprintf("opt.res: %s\n",opt.res))
 
     ###
-    if(is.null(gene.mapping.table)){
-        gene.mapping.table <- data.table(geneID=as.character(adata$var$gene_ids),
-                         seu.id=as.character(rownames(adata$var)),
-                         display.name=as.character(rownames(adata$var)))
-    }
+    #if(is.null(gene.mapping.table)){
+    #    gene.mapping.table <- data.table(geneID=as.character(adata$var$gene_ids),
+    #                     seu.id=as.character(rownames(adata$var)),
+    #                     display.name=as.character(rownames(adata$var)))
+    #}
 
     ###### patch ######
     if(!"percent.mito" %in% colnames(adata$obs))
@@ -762,7 +764,7 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
     RhpcBLASctl::omp_set_num_threads(1)
     doParallel::registerDoParallel(cores = ncores)
     
-    plot.general <- function(rd="umap")
+    plot.general <- function(adata,rd="umap")
     {
 
         ####
@@ -828,7 +830,7 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
     
     }
 
-    plot.resolution <- function(rd="umap",resolution.vec=seq(0.1,2.4,0.1))
+    plot.resolution <- function(adata,rd="umap",resolution.vec=seq(0.1,2.4,0.1))
     {
         #### 
         for(i in seq_len(length(resolution.vec)/4))
@@ -992,7 +994,7 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
             use.rd <- "X_pca_top"
             tic("neighbors ...")
             if(use.harmony || (!is.null(method.integration) && method.integration=="Harmony")){
-                sc$external$pp$harmony_integrate(adata, "batchV",basis=use.rd,max_iter_harmony=30L)
+                sc$external$pp$harmony_integrate(adata, "batchV",basis=use.rd,max_iter_harmony=max_iter_harmony)
                 sc$pp$neighbors(adata, n_neighbors=as.integer(20), n_pcs=opt.npc,use_rep="X_pca_harmony")
             }else{
                 sc$pp$neighbors(adata, n_neighbors=as.integer(20), n_pcs=opt.npc,use_rep=use.rd)
@@ -1005,7 +1007,7 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
             
             adata$write_h5ad(sprintf("%s.scanpy.step1.h5ad",out.prefix))
 
-            plot.general()
+            plot.general(adata)
        
         }
 
@@ -1039,7 +1041,483 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
         adata$write_h5ad(sprintf("%s.scanpy.h5ad",out.prefix))
         cat(sprintf("data saved!\n"))
 
-        plot.resolution(resolution.vec=res.test)
+        plot.resolution(adata,resolution.vec=res.test)
+
+    }
+
+    #####
+    {
+
+        adata$obs[["ClusterID"]] <- adata$obs[[sprintf("leiden.%s",opt.res)]]
+
+        ###plt$figure(figsize=c(4,5), dpi=300)
+        sp <- plt$subplots(figsize=c(5,4))
+        sc$pl$umap(adata, color="ClusterID",ax=sp[[2]])
+        plt$tight_layout()
+        plt$savefig(sprintf("%s.%s.%s.png",out.prefix,"umap","ClusterID"))
+        
+    }
+
+    #############################
+    ## violin
+    if(F)
+    {
+        nCls <- length(table(adata$obs$ClusterID))
+        l_ply(seq_along(g.geneOnUmap.list),function(i){
+            gene.tmp <- intersect(g.geneOnUmap.list[[i]],rownames(adata$var))
+            glist.i <- g.geneOnUmap.list[i]
+            glist.i[[1]] <- gene.tmp
+            if(length(gene.tmp)>0){
+                    
+                adata.plot <- adata[,rownames(adata$var) %in% gene.tmp]
+                #sc$pp$scale(adata.plot)
+                plt$figure(figsize=c(8,8), dpi=300)
+                ###sc$pl$umap(adata, ncols=as.integer(3), color=gene.tmp,vmax="p99",frameon=F)
+                ##sc$pl$stacked_violin(adata.plot, glist.i, groupby='ClusterID',swap_axes=F,vmin=-1,vmax=5)
+                sc$pl$stacked_violin(adata.plot, glist.i, groupby='ClusterID',swap_axes=F,vmin=0,vmax=8)
+                plt$savefig(sprintf("%s.violin.marker.%s.png",out.prefix,names(glist.i)))
+
+                adata.plot <- NULL
+                gc()
+
+            }
+        },.parallel=F)
+    }
+
+    if(do.deg)
+    {
+        dir.create(sprintf("%s/deg",dirname(out.prefix)),F,T)
+
+        tic("deg")
+        sc$tl$rank_genes_groups(adata,'ClusterID', method='t-test',use_raw=F)
+        #sc$tl$rank_genes_groups(adata,'ClusterID', method='t-test',groups=list('C12'),use_raw=F)
+        toc()
+
+        deg.tb = as.data.table(sc$get$rank_genes_groups_df(adata,group=NULL))
+        saveRDS(deg.tb,file=sprintf("%s.scanpy.deg.ttest.rds",out.prefix)) 
+        ###adata$write_h5ad(sprintf("%s.scanpy.wDEG.h5ad",out.prefix))
+
+        ###plt$figure(figsize=c(5,4), dpi=300)
+        sp <- plt$subplots(figsize=c(5,4))
+        sc$pl$rank_genes_groups(adata, n_genes=25L, sharey=FALSE,ax=sp[[2]])
+        plt$savefig(sprintf("%s.deg.marker.%s.png",out.prefix,"00"))
+
+#
+#        tic("limma")
+#        de.out <- ssc.DEGene.limma(sce,assay.name=assay.name,ncell.downsample=ncell.deg,
+#                       group.var="ClusterID",batch=if(nBatch>1) "batchV" else NULL,
+#                       out.prefix=sprintf("%s/limma/%s",
+#                                  dirname(out.prefix),basename(out.prefix)),
+#                       n.cores=ncores,verbose=3, group.mode="multiAsTwo",
+#                       T.logFC=if(platform=="SmartSeq2") 1 else 0.25)
+#        toc()
+#
+#        saveRDS(de.out,file=sprintf("%s.de.out.limma.rda",
+#                        sprintf("%s/limma/%s",
+#                            dirname(out.prefix),
+#                            basename(out.prefix))))
+    }
+
+    return(list("adata"=adata))
+
+}
+
+#' Wraper for running rapids_singlecell pipeline
+#' @importFrom reticulate import
+#' @importFrom data.table data.table fread
+#' @importFrom S4Vectors DataFrame
+#' @importFrom sscVis loginfo
+#' @importFrom ggplot2 ggsave
+#' @importFrom cowplot plot_grid save_plot
+#' @importFrom RhpcBLASctl omp_set_num_threads
+#' @importFrom doParallel registerDoParallel
+#' @importFrom utils head str data
+#' @importFrom tictoc tic toc
+#' @param adata object of \code{AnnData}
+#' @param out.prefix character; output prefix
+#' @param gene.exclude.df data.frame; gene blak list. Required column: seu.id.
+#' @param n.top integer; number of top genes. (default: 1500)
+#' @param opt.res character; optimal resolution (default: "1")
+#' @param aid character; an ID (default: "PRJ")
+#' @param plot.rd character vector; reducedDimNames used for plots (default: c("umap"))
+#' @param opt.npc integer; optimal number of principal componets to use (default: 15L)
+#' @param ncores integer; number of CPU cores to use (default: 16)
+#' @param res.test double; resolutions to test (default: seq(0.1,2.4,0.1) )
+#' @param cor.var character vector; Subset of c("S_score","G2M_score","DIG.Score","ISG.Score","percent.mito") or NULL. (default: c("S_score","G2M_score","DIG.Score","percent.mito")).
+#' @param ncell.deg integer; number of cell to downsample. used in the differentially expressed gene analysis. (default: 1500)
+#' @param do.deg logical; whether perform the differentially expressed gene analysis. (default: FALSE)
+#' @param hvg.batch.minNCells integer; required minimum number of cells in each batch. Batch with < hvg.batch.minNCells will not be used for HVG finding. (default: 100)
+#' @param use.harmony logical; whether use the harmony method. (default: TRUE)
+#' @param method.integration character; integration method. (default: NULL)
+#' @param specie character; specie, one of "human", "mouse". (default: "human")
+#' @param max_iter_harmony integer; max_iter_harmony of sc$external$pp$harmony_integrate(). (default: 30L)
+#' @param gene.mapping.table data.table; used for gene ID conversion. (default: NULL)
+#' @param res.addition character vector; additional resolution parameters. Internally, resolutions from 0.1 to 2.4 will be used. (default: NULL)
+#' @param run.stage integer; running stage. (default: 100)
+#' @return a list contain an object of \code{AnnData}
+#' @details run the rapids_singlecell pipeline
+#' @export
+run.rapids_singlecell <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
+			#measurement="counts",platform="10X",
+			opt.res="1",
+            #use.sctransform=F,
+            aid="PRJ",plot.rd=c("umap"),
+			opt.npc=15L,ncores=16,
+            res.test=seq(0.1,2.4,0.1),
+            #do.adj=T,
+            ### remove this function: If certain variables are corrected (!is.null(cor.var) || cor.var!="NULL"), the pipeline will also correct for batchV and percent.mito
+            #cor.var=c("S_score","G2M_score","DIG.Score","percent.mito","batchV"),
+            cor.var=c("S_score","G2M_score","DIG.Score","percent.mito"),
+            ncell.deg=1500,do.deg=F,
+            hvg.batch.minNCells=100,
+            #do.scale=F,
+            use.harmony=T,
+            method.integration=NULL,
+            specie="human",
+            max_iter_harmony=30L,
+			gene.mapping.table=NULL,res.addition=NULL,
+			run.stage=100)
+{
+
+    require("reticulate")
+    sc <- import("scanpy")
+    matplotlib <- import("matplotlib")
+    #matplotlib$use('Agg')
+    plt <- import("matplotlib.pyplot")
+    plt$switch_backend('Agg')
+    sc$settings$autoshow = FALSE
+    sc$set_figure_params(dpi=300,dpi_save=300,fontsize=12)
+    cp <- import("cupy")    
+    rsc <- import("rapids_singlecell")
+
+    cat(sprintf("opt.res: %s\n",opt.res))
+
+    ###
+    #if(is.null(gene.mapping.table)){
+    #    gene.mapping.table <- data.table(geneID=as.character(adata$var$gene_ids),
+    #                     seu.id=as.character(rownames(adata$var)),
+    #                     display.name=as.character(rownames(adata$var)))
+    #}
+
+    ###### patch ######
+    if(!"percent.mito" %in% colnames(adata$obs))
+    {
+        idx.pmt <- grep("^(percent.mito|percent.mt)$",colnames(adata$obs),value=T,perl=T)
+        if(length(idx.pmt) > 0){ adata$obs$percent.mito <- adata$obs[,idx.pmt[1]] }
+    }
+    if(!"patient" %in% colnames(adata$obs))
+    {
+        idx.patient <- grep("^(patient|Patient|PatientID)$",colnames(adata$obs),value=T,perl=T)
+        if(length(idx.patient) > 0){
+            adata$obs$patient <- adata$obs[,idx.patient[1]]
+        }else{
+            adata$obs$patient <- "PXX"
+        }
+    }
+    if(!"batchV" %in% colnames(adata$obs)) { adata$obs$batchV <- adata$obs$patient }
+    ###################
+
+    nBatch <- length(table(adata$obs$batchV))
+    loginfo(sprintf("Total batchs: %d",nBatch))
+    print(str(table(adata$obs$batchV)))
+
+    #####
+    
+    RhpcBLASctl::omp_set_num_threads(1)
+    doParallel::registerDoParallel(cores = ncores)
+    
+    plot.general <- function(adata,rd="umap")
+    {
+        
+        #### a work-around
+        #adata$X <- adata$X$get()
+
+        ####
+        t.par <- list("loc"=c(4,5),
+                      "stype"=c(4,5),
+                      "cancerType"=c(4,5),
+                      "phase"=c(4,5),
+                      "S_score"=c(4,5),
+                      "G2M_score"=c(4,5),
+                      "total_counts"=c(4,5),
+                      "percent.mito"=c(4,5),
+                      "libraryID"=NULL,
+                      "patient"=NULL,
+                      "batchV"=NULL)
+        for(tt in names(t.par)){
+            if(!is.null(adata$obs[[tt]])){
+                if(tt %in% c("libraryID","patient","batchV")){
+                    if(length(unique(adata$obs$libraryID))>20){
+                        ###plt$figure(figsize=c(4.5,4), dpi=300)
+                        sp <- plt$subplots(figsize=c(10,4))
+                        sc$pl$umap(adata, color=c(tt),ax=sp[[2]])
+                    }else{
+                        ###plt$figure(figsize=c(5.0,4), dpi=300)
+                        sp <- plt$subplots(figsize=c(7.5,4))
+                        sc$pl$umap(adata, color=c(tt),ax=sp[[2]])
+                    }
+                }else{
+                    ##plt$figure(figsize=t.par[[tt]], dpi=300)
+                    sp <- plt$subplots(figsize=c(5,4))
+                    sc$pl$umap(adata, color=c(tt),ax=sp[[2]])
+                }
+                plt$tight_layout()
+                plt$savefig(sprintf("%s.%s.%s.png",out.prefix,rd,tt))
+            }
+        }
+
+        #### gene on umap
+        loginfo(sprintf("bein plotting geneOnUmap ..."))
+        l_ply(seq_along(g.geneOnUmap.list),function(i){
+            gene.tmp <- intersect(g.geneOnUmap.list[[i]],rownames(adata$var))
+            loginfo(sprintf("(begin) geneSet %s",names(g.geneOnUmap.list)[i]))
+            if(length(gene.tmp)>0){
+
+                adata.plot <- adata[,rownames(adata$var) %in% gene.tmp]
+                sc$pp$scale(adata.plot)
+                plt$figure(figsize=c(3.5,4), dpi=300)
+                ##sc$pl$umap(adata, ncols=as.integer(3), color=gene.tmp,vmin="p05",vmax="p95",frameon=F)
+                sc$pl$umap(adata.plot, ncols=as.integer(3), color=gene.tmp, color_map="YlOrRd", vmin=-1,vmax=5, frameon=F)
+                plt$savefig(sprintf("%s.%s.marker.%s.png",out.prefix,rd,names(g.geneOnUmap.list)[i]))
+
+                adata.plot <- NULL
+                gc()
+
+            }
+            loginfo(sprintf("(end) geneSet %s",names(g.geneOnUmap.list)[i]))
+        },.parallel=F)
+        loginfo(sprintf("end plotting geneOnUmap."))
+
+        ### density
+        ### "percent.mito"
+        ### "nCount_RNA"
+        ### "nFeature_RNA"
+    
+    }
+
+    plot.resolution <- function(adata,rd="umap",resolution.vec=seq(0.1,2.4,0.1))
+    {
+        #### 
+        for(i in seq_len(length(resolution.vec)/4))
+        {
+            plt$figure(figsize=c(5,4), dpi=300)
+            sc$pl$umap(adata, ncols=as.integer(2), color=sprintf("leiden.%s",resolution.vec[((i-1)*4+1):(i*4)]))
+            plt$savefig(sprintf("%s.%s.res.%d.png",out.prefix,rd,i))
+        }
+    }
+
+
+
+    old.par <- NULL
+    if(file.exists(sprintf("%s.run.par.txt",out.prefix))){
+	    old.par <- fread(sprintf("%s.run.par.txt",out.prefix))
+    }
+    write.table(data.frame(opt.res=opt.res),
+		file=sprintf("%s.run.par.txt",out.prefix),row.names=F,quote=F,sep="\t")
+
+    if(file.exists(sprintf("%s.rapids_singlecell.h5ad",out.prefix)))
+    {
+        loginfo(sprintf("loading pre-calculated result ..."))
+        #adata <- sc$read_h5ad(sprintf("%s.rapids_singlecell.h5ad",out.prefix))
+        adata <- anndata::read_h5ad(sprintf("%s.rapids_singlecell.h5ad",out.prefix))
+        if(old.par$opt.res==opt.res){
+            return(list("adata"=adata))
+        }
+    }else
+    {
+
+        if(file.exists(sprintf("%s.rapids_singlecell.step1.h5ad",out.prefix)))
+        {
+            loginfo(sprintf("loading h5ad without clustering  ..."))
+            #adata <- sc$read_h5ad(sprintf("%s.rapids_singlecell.step1.h5ad",out.prefix))
+            adata <- anndata::read_h5ad(sprintf("%s.rapids_singlecell.step1.h5ad",out.prefix))
+        }else{
+            loginfo(sprintf("running rapids_singlecell pipeline ..."))
+
+            if(!is.null(gene.exclude.df) && !("S_score" %in% cor.var) && !("G2M_score" %in% cor.var)){
+                gene.exclude.df <- gene.exclude.df[!(category %in% c("cellCycle/proliferation")),]
+            }
+
+            #### variable genes
+            {
+                ###sc$pp$highly_variable_genes(adata)
+                ### if flavor="seurat_v3", count data is expected
+                
+                adata_tmp <- NULL
+                my.flavor <- "seurat"
+                if(my.flavor=="seurat_v3"){
+                    adata_tmp <- adata$raw$to_adata()
+                    sc$pp$filter_genes(adata_tmp, min_cells=3)
+                }else{
+                    adata_tmp <- adata
+                }
+                cellDistLib.vec <- sort(unclass(table(adata_tmp$obs$libraryID)),decreasing=T)
+                f.lib <- names(cellDistLib.vec)[cellDistLib.vec > hvg.batch.minNCells]
+                adata_tmp <- adata_tmp[adata_tmp$obs$libraryID %in% f.lib]
+                f.gene <- rownames(adata_tmp$var) %in% gene.exclude.df[["geneSymbol"]] |
+                            (grepl("^(RP[LS]|Rp[ls])",rownames(adata_tmp$var),perl=T))
+                adata_tmp <- adata_tmp[,!f.gene]
+                rsc$pp$highly_variable_genes(adata_tmp,flavor=my.flavor,n_top_genes=as.integer(n.top),batch_key="batchV")
+                #sc$pp$highly_variable_genes(adata_tmp,flavor=my.flavor,n_top_genes=as.integer(n.top),batch_key="batchV")
+                hvg.glist <- rownames(adata_tmp$var)[adata_tmp$var$highly_variable]
+
+                #sc$pp$highly_variable_genes(adata_countData,flavor="seurat_v3",n_top_genes=100000L,batch_key="batchV")
+                #sc$pp$highly_variable_genes(adata,flavor="seurat",n_top_genes=100000L,batch_key="batchV")
+                #adata_countData$var$inBlkGList <- (rownames(adata_countData$var) %in% c(gene.exclude.df[["geneSymbol"]],
+                #                                                    "MALAT1","MALAT1-ENSG00000251562","Malat1",
+                #                                                    "MALAT1-ENSG00000279576","MALAT1-ENSG00000278217")) |
+                #                        (grepl("^(RP[LS]|Rp[ls])",rownames(adata_countData$var),perl=T))
+                #hvg.gene.info <- as.data.table(adata_countData$var,keep.rownames="geneSymbol")
+                #hvg.glist <- head(hvg.gene.info[order(-variances_norm),][inBlkGList==F,][["geneSymbol"]],n.top)
+                #print("all(rownames(adata_countData$var)==rownames(adata$var))")
+                #print(all(rownames(adata_countData$var)==rownames(adata$var)))
+                #for(xx in c("highly_variable","highly_variable_rank","means","variances","variances_norm","inBlkGList")){
+                #    adata$var[[xx]] <- adata_countData$var[[xx]]
+                #}
+
+                adata$var$highly_variable <- rownames(adata$var) %in% hvg.glist
+
+                adata_tmp <- NULL
+                gc()
+
+            }
+
+            ##### calculate some scores
+            adj.cov <- cor.var
+            if(adj.cov[1]=="NULL") { adj.cov <- NULL }
+            if(!is.null(adj.cov)){
+                loginfo(sprintf("CellCycleScoring ..."))
+                a.env <- new.env()
+                if(specie=="human"){
+                    data("cc.genes",package="Seurat",envir=a.env)
+                }else{
+                    data("cc.genes.mouse",package="scPip",envir=a.env)
+                }
+
+                rsc$tl$score_genes_cell_cycle(adata,
+                                              s_genes=a.env[["cc.genes"]][["s.genes"]],
+                                              g2m_genes=a.env[["cc.genes"]][["g2m.genes"]])
+                
+                ####seu$CC.Difference <- seu$S.Score - seu$G2M.Score
+                
+                loginfo(sprintf("AddModuleScore ..."))
+                dat.ext.dir <- system.file("extdata",package="scPip")
+                glist.HSP <- fread(sprintf("%s/byZhangLab.stress.glist.gz",dat.ext.dir))$geneSymbol
+                glist.HSP <- intersect(glist.HSP,rownames(adata$var))
+                rsc$tl$score_genes(adata,gene_list=glist.HSP,score_name="DIG.Score",ctrl_size=length(glist.HSP))
+
+                glist.ISG <- fread(sprintf("%s/ISG.MSigDB.BROWNE_INTERFERON_RESPONSIVE_GENES.detected.glist.gz",dat.ext.dir))$geneSymbol
+                rsc$tl$score_genes(adata,gene_list=glist.ISG,score_name="ISG.Score",ctrl_size=length(glist.ISG))
+
+                ### remove this function: if correct something, always correct for batchV and percent.mito
+                ###if("percent.mito" %in% colnames(seu[[]])){
+                ###    adj.cov <- c(adj.cov,"percent.mito")
+                ###}
+                ###if(nBatch>1){
+                ###    adj.cov <- c(adj.cov,c("batchV"))
+                ###}
+                if(!("percent.mito" %in% colnames(adata$obs))){
+                    adj.cov <- setdiff(adj.cov,"percent.mito")
+                }
+                if(!(nBatch>1)){
+                    adj.cov <- setdiff(adj.cov,c("batchV"))
+                }
+
+                adata$obs$batchV <- as.character(adata$obs$batchV)
+
+                loginfo(sprintf("adj: %s\n",paste(adj.cov,collapse=",")))
+                print(head(adata$obs,n=4))
+
+            }
+
+            #####
+            {
+                adata_hvg <- adata[,adata$var$highly_variable==TRUE]
+            }
+
+            #####
+            if(!is.null(adj.cov)){
+                loginfo(sprintf("regress_out ..."))
+                tic("regress_out")
+                rsc$pp$regress_out(adata_hvg, adj.cov)
+                toc()
+
+            }
+
+            tic("scale")
+            rsc$pp$scale(adata_hvg)
+            toc()
+
+            ##sc$tl$pca(adata_hvg, svd_solver='arpack',n_comps=as.integer(opt.npc))
+            ##sc$tl$pca(adata_hvg, svd_solver='arpack')
+            tic("pca")
+            rsc$pp$pca(adata_hvg)
+            toc()
+
+            adata$obsm[["X_pca"]] <- adata_hvg$obsm[["X_pca"]]
+            npc <- ncol(adata$obsm[["X_pca"]])
+            adata$obsm[["X_pca_top"]] <- adata$obsm[["X_pca"]][,seq_len(min(opt.npc,npc)),drop=F]
+
+            adata_hvg <- NULL
+            gc()
+
+            loginfo(sprintf("use.harmony: %s",use.harmony))
+            use.rd <- "X_pca_top"
+
+            tic("neighbors ...")
+            if(use.harmony || (!is.null(method.integration) && method.integration=="Harmony")){
+                ##sc$external$pp$harmony_integrate(adata, "batchV",basis=use.rd,max_iter_harmony=max_iter_harmony)
+                rsc$pp$harmony_integrate(adata, key="batchV",basis=use.rd,max_iter_harmony=max_iter_harmony)
+                rsc$pp$neighbors(adata, n_neighbors=as.integer(20), n_pcs=opt.npc,use_rep="X_pca_harmony")
+            }else{
+                rsc$pp$neighbors(adata, n_neighbors=as.integer(20), n_pcs=opt.npc,use_rep=use.rd)
+            }
+            toc()
+
+            tic("umap ...")
+            rsc$tl$umap(adata)
+            toc()
+            
+            adata$write_h5ad(sprintf("%s.rapids_singlecell.step1.h5ad",out.prefix))
+            #### it seems the 'X' is automatically converted to CPU format by write_h5ad()
+            adata <- anndata::read_h5ad(sprintf("%s.rapids_singlecell.step1.h5ad",out.prefix))
+            
+            plot.general(adata)
+            
+        }
+
+        #### clustring
+        #res.test <- seq(0.1,2.4,0.1)
+
+        tic("leiden ...")
+        res.cls <- llply(res.test,function(res.i){
+
+                  tic(sprintf("____ leiden with resolution %s ...",res.i))
+                  ###adata.i <- adata[,adata$var$highly_variable==TRUE]
+                  adata.i <- adata[,1:10]
+                  #adata.i <- adata.i$copy()
+                  rsc$tl$leiden(adata.i, resolution=res.i)
+                  cls.i <- sprintf("C%02d",adata.i$obs[["leiden"]])
+                  toc()
+
+                  adata.i <- NULL
+                  gc()
+
+                  return(cls.i)
+                                         },.parallel=F) ###### .parallel=T cause error: Unable to access object (object is from previous session and is now invalid)
+        names(res.cls) <- sprintf("leiden.%s",res.test)
+        for(xx in names(res.cls)){
+            adata$obs[[xx]] <- res.cls[[xx]]
+        }
+        toc()
+
+        adata$obs[["ClusterID"]] <- adata$obs[[sprintf("leiden.%s",opt.res)]]
+
+        ##### save result
+        adata$write_h5ad(sprintf("%s.rapids_singlecell.h5ad",out.prefix))
+        cat(sprintf("data saved!\n"))
+
+        plot.resolution(adata,resolution.vec=res.test)
 
     }
 
@@ -1118,6 +1596,8 @@ run.scanpy <- function(adata,out.prefix,gene.exclude.df,n.top=1500,
     return(list("adata"=adata))
 
 }
+
+
 
 #' Wraper for running Scanorama 
 #' @importFrom Seurat CreateSeuratObject SetAssayData GetAssayData CellCycleScoring AddModuleScore ScaleData SCTransform RunPCA ProjectDim RunUMAP RunTSNE FindNeighbors FindClusters Embeddings DimPlot NoLegend
