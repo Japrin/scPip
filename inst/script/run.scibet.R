@@ -3,7 +3,7 @@
 suppressPackageStartupMessages(library("argparse"))
 suppressMessages(library("anndata"))
 suppressMessages(library("scibet"))
-#suppressMessages(library(tidyverse))
+suppressMessages(library("tidyverse"))
 suppressMessages(library("data.table"))
 suppressMessages(library("plyr"))
 
@@ -61,7 +61,12 @@ if(is.null(model_path)){
     ##### within each major group, predict sub types
     prd.full.tb <- as.data.table(ldply(cellSubtype.vec,function(ct_sel) {
         prd.x.tb <- prd.tb[scibetMajor==ct_sel,]
-        dat_test_mtx_x = dat_test_mtx[prd.x.tb$cellID,]
+        dat_test_mtx_x = dat_test_mtx[prd.x.tb$cellID,,drop=F]
+        ### a bug: 3550 lables when only 1 cell in 'matrix' dat_test_mtx_x
+        ### it works when convert dat_test_mtx_x from 'matrix' to 'tibble'
+        if(nrow(dat_test_mtx_x)==1){
+            dat_test_mtx_x <- as_tibble(dat_test_mtx_x)
+        }
         prd.x.vec <- model_sub_list[[ct_sel]](dat_test_mtx_x)
         prd.x.tb$scibetSub <- prd.x.vec
         print(sprintf("cellSubtype done (%s)!",ct_sel))

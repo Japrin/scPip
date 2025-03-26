@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library("argparse"))
 
 parser <- ArgumentParser()
 parser$add_argument("-i", "--inFile", type="character", required=TRUE, help="input h5ad file. 'cellID' is required in the obs")
-#parser$add_argument("-d", "--dataset", type="character", default="DataSet01", help="dataset name. [default %(default)s]")
+parser$add_argument("-d", "--dataset", type="character", default="DataSet01", help="dataset name. [default %(default)s]")
 parser$add_argument("-a", "--annFile", type="character", required=TRUE, help="annotation file by run.scibet.R")
 #parser$add_argument("-o", "--outPrefix", type="character", required=TRUE, help="out prefix")
 args <- parser$parse_args()
@@ -12,22 +12,22 @@ print(args)
 
 in.file <- args$inFile
 #out.prefix <- args$outPrefix
+opt.dataset <- args$dataset
 ann.file <- args$annFile
 out.prefix = gsub(".h5ad$","",in.file)
 #dir.create(dirname(out.prefix),F,T)
 
 ############ settings ##########
 {
-    library("R.utils")
-    library("data.table")
-    library("sscVis")
-    library("tictoc")
-    library("plyr")
-    library("ggplot2")
-    library("ggpubr")
-    library("anndata")
-
-    require("reticulate")
+    suppressMessages(library("R.utils"))
+    suppressMessages(library("data.table"))
+    suppressMessages(library("sscVis"))
+    suppressMessages(library("tictoc"))
+    suppressMessages(library("plyr"))
+    suppressMessages(library("ggplot2"))
+    suppressMessages(library("ggpubr"))
+    suppressMessages(library("anndata"))
+    suppressMessages(library("reticulate"))
     sc <- import("scanpy")
     plt <- import("matplotlib.pyplot")
 
@@ -92,9 +92,9 @@ out.prefix = gsub(".h5ad$","",in.file)
 
         sp <- plt$subplots(figsize=c(4,4))
         ax <- sp[[2]]
-        sc$pl$umap(adata, color="scibetMajor",legend_loc='on data',ax=sp[[2]],legend_fontsize=10)
-        ax$set_xlim(my.xlim[1],my.xlim[2]);
-        ax$set_ylim(my.ylim[1],my.ylim[2]);
+        sc$pl$umap(adata, color="scibetMajor",legend_loc='on data',ax=sp[[2]],legend_fontsize=10,title=opt.dataset)
+        #ax$set_xlim(my.xlim[1],my.xlim[2])
+        #ax$set_ylim(my.ylim[1],my.ylim[2])
         plt$tight_layout()
         plt$savefig(sprintf("%s.%s.%s.png",out.prefix,"umap","scibetMajor"))
 
