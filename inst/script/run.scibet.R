@@ -33,13 +33,20 @@ if(is.null(model_path)){
 
 ############## Prediction ################################################
 {
-    
+   
+    cat("load model model.major.all.rds ...\n")
     model_all = readRDS(file.path(model_path,'model.major.all.rds'))
-    cellSubtype.vec <- c("T8","Th","Treg","ILC","B","Plasma",
-                         "Neutro","pDC","DC","M","Mast",
-                         "Endo","Fibro","SMC","Epi","Glia")
+    model.sub.filepath <- list.files(model_path,'model.sub.+\\.rds',full.names = F)
+    m <- regexec("model.sub.(.+?).rds",model.sub.filepath,perl=T)
+    mm <- regmatches(model.sub.filepath,m)
+    cellSubtype.vec <- sapply(mm,"[",2)
+    #cellSubtype.vec <- c("T8","Th","Treg","ILC","B","Plasma",
+    #                     "Neutro","pDC","DC","M","Mast",
+    #                     "Endo","Fibro","SMC","Epi","Glia")
     model_sub_list <- sapply(cellSubtype.vec, function(x){
-                                readRDS(file.path(model_path, paste0("model.sub.", x, ".rds")))
+                                mfile <- paste0("model.sub.", x, ".rds")
+                                cat(sprintf("load model %s ...\n",mfile))
+                                readRDS(file.path(model_path, mfile))
                              })
     names(model_sub_list) <- cellSubtype.vec
     
@@ -65,5 +72,5 @@ if(is.null(model_path)){
     gc()
 }
 
-saveRDS(prd.full.tb,file=sprintf("%s.ann.tb.rds",out_path))
+saveRDS(prd.full.tb,file=sprintf("%s.ann.tb.rds",out.prefix))
 
