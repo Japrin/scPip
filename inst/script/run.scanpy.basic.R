@@ -19,6 +19,7 @@ parser$add_argument("-g", "--deg",action="store_true",default=FALSE,help="[defau
 parser$add_argument("-w", "--ncellDEG",type="integer",default=1500,
                     help="number of cells to downsample to for each group. used in DEG analysis. [default %(default)s]")
 #parser$add_argument("-s", "--scale",action="store_true",default=FALSE,help="[default %(default)s]")
+parser$add_argument("-p", "--percentMT", type="double", default=10, help="threshold for percent.mito. [default %(default)s]")
 parser$add_argument("-j", "--corVar", type="character", default="S_score,G2M_score,DIG.Score,percent.mito",
 		    help="subset of S_score,G2M_score,DIG.Score,percent.mito, or NULL. [default %(default)s]")
 parser$add_argument("-f", "--filterout",type="character",help="Format is COLUMN_ID:COLUMN_VAL_1,COLUMN_VAL_2,COLUMN_VAL_3. Filter out cells with COLUMN_ID in one of COLUMN_VAL_1, COLUMN_VAL_2, and COLUMN_VAL_3.")
@@ -51,6 +52,7 @@ opt.geneIDFile <- args$geneIDFile
 opt.markerFile <- args$markerFile
 opt.removeContamination <- args$removeContamination
 opt.specie <- args$specie
+opt.percentMT <- args$percentMT
 
 dir.create(dirname(out.prefix),F,T)
 
@@ -129,9 +131,9 @@ if(!is.null(adata) && ("libraryID" %in% colnames(adata$obs)) && all(is.na(adata$
 ##### filter out cells with hgih percent.mito
 if(!is.null(adata) && "percent.mito" %in% colnames(adata$obs) ){
 	if(max(adata$obs$percent.mito) <1){
-        adata <- adata[adata$obs$percent.mito < 0.1]
+        adata <- adata[adata$obs$percent.mito < opt.percentMT/100]
 	}else{
-        adata <- adata[adata$obs$percent.mito < 10]
+        adata <- adata[adata$obs$percent.mito < opt.percentMT]
 	}
 }
 
