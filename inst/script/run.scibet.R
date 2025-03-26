@@ -74,3 +74,5 @@ if(is.null(model_path)){
 
 saveRDS(prd.full.tb,file=sprintf("%s.ann.tb.rds",out.prefix))
 
+cat("annotation result saved !\n")
+
